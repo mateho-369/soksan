@@ -6,9 +6,10 @@ import { MockMap, mapMock } from './maplibre-mock';
 import { apiFetch } from '../lib/http';
 
 /**
- * Phase 3 — business registration + Bakong KHQR upgrade, driven through the
- * real UI. The demo seam auto-approves registrations (production holds them
- * for the Phase 5 admin queue) and confirms KHQR payments instantly.
+ * Phase 3 + Phase 5 — business registration + Bakong KHQR upgrade, driven
+ * through the real UI. Since Phase 5, new registrations land in the admin
+ * approval queue (status "pending"), and the demo seam confirms KHQR
+ * payments instantly.
  */
 async function loginViaUI(user: ReturnType<typeof userEvent.setup>) {
   renderAppAt('/login');
@@ -51,7 +52,47 @@ describe('business registration (Phase 3)', () => {
       },
       { timeout: 6000 },
     );
-    expect(screen.getAllByText(/approved/i).length).toBeGreaterThan(0);
+    // Phase 5: new registrations start pending admin review, not approved.
+    expect(screen.getAllByText(/awaiting review/i).length).toBeGreaterThan(0);
+  });
+
+  it('admin approves the pending registration and the dashboard shows Approved', async () => {
+    // beforeEach clears localStorage; restore Dara's session for the final check.
+    localStorage.setItem('soksan-token', 'mock-token-3');
+    // Find the pending business through the admin API (admin token = mock-token-4).
+    const pendingRes = await apiFetch('/admin/businesses/pending', {
+      headers: { Authorization: 'Bearer mock-token-4' },
+    });
+    expect(pendingRes.status).toBe(200);
+    const pending = (await pendingRes.json()) as Array<{ id: number; name: string }>;
+    const target = pending.find((b) => b.name === 'QA Test Café');
+    expect(target).toBeTruthy();
+
+    const approveRes = await apiFetch('/admin/businesses/approve', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer mock-token-4',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ business_id: target!.id }),
+    });
+    expect(approveRes.status).toBe(200);
+
+    // The audit log recorded the decision.
+    const auditRes = await apiFetch('/admin/audit-logs', {
+      headers: { Authorization: 'Bearer mock-token-4' },
+    });
+    const audit = (await auditRes.json()) as Array<{ action: string }>;
+    expect(audit.some((row) => row.action === 'business.approve')).toBe(true);
+
+    // Owner sees the approved status on a fresh dashboard load.
+    renderAppAt('/business/dashboard');
+    await waitFor(
+      () => {
+        expect(screen.getAllByText(/approved/i).length).toBeGreaterThan(0);
+      },
+      { timeout: 6000 },
+    );
   });
 
   it('upgrades the seeded business to Boosted via the Bakong KHQR modal', async () => {

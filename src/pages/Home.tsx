@@ -22,6 +22,7 @@ import PostComposer from '../components/PostComposer';
 import PostViewer from '../components/PostViewer';
 import BoostModal from '../components/BoostModal';
 import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
+import HiddenGemBanner from '../components/HiddenGemBanner';
 import { EmptyState } from '../components/States';
 import { useAuth } from '../contexts/AuthContext';
 import LikeButton from '../ui/LikeButton';
@@ -229,6 +230,9 @@ export default function Home() {
               <Play /> {t('social.watchClips')}
             </button>
           </header>
+
+          {/* Phase 5 — admin-picked Hidden Gem of the Week (display part). */}
+          <HiddenGemBanner />
 
           {query && (
             <div className="search-result-note">

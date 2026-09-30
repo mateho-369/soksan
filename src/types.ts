@@ -86,6 +86,8 @@ export interface Post {
   commune_name?: string;
   lat?: number | null;
   lng?: number | null;
+  /** Phase 5 moderation pipeline: published | pending_review | rejected. */
+  status?: string;
   is_liked: boolean;
   is_saved?: boolean;
   business_name: string | null;

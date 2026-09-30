@@ -68,9 +68,14 @@ class PostService
     public function create(User $user, array $validated): Post
     {
         $post = DB::transaction(function () use ($user, $validated) {
+            // Phase 5 first-post gate: an account with no published posts yet
+            // gets its FIRST post held for review; later posts publish
+            // immediately. Admins release it via the moderation queue.
+            $firstPostGate = !$user->posts()->where('status', 'published')->exists();
+
             $post = $user->posts()->create(collect($validated)
                 ->only(['category', 'location_name', 'province', 'caption', 'latitude', 'longitude'])
-                ->all());
+                ->all() + ['status' => $firstPostGate ? 'pending_review' : 'published']);
 
             // Tag to commune; district/province derive automatically.
             $this->geo->attach($post, isset($validated['commune_id']) ? (int) $validated['commune_id'] : null);

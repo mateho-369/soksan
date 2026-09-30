@@ -42,6 +42,36 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const posts: Post[] = clone(postsSeed) as unknown as Post[];
 const categories = clone(categoriesSeed);
 const ads = clone(adsSeed);
+
+/**
+ * Phase 5 moderation pipeline: only `published` posts (or legacy posts
+ * with no status field) ever reach the public feed or clips.
+ */
+const visiblePosts = (): Post[] => posts.filter((p) => !p.status || p.status === 'published');
+
+/* ------------------------- admin state (Phase 5) ------------------------ */
+interface AuditLogRow {
+  id: number;
+  user_id: number;
+  user_name: string;
+  action: string;
+  subject: string;
+  created_at: string;
+}
+const auditLogs: AuditLogRow[] = [];
+let nextAuditLogId = 1;
+const recordAudit = (user: MockUser, action: string, subject: string) => {
+  auditLogs.unshift({
+    id: nextAuditLogId++,
+    user_id: user.id,
+    user_name: user.name,
+    action,
+    subject,
+    created_at: nowISO(),
+  });
+};
+/** Hidden Gem of the Week — editorial pick, never ranking. */
+let currentHiddenGem: { post_id: number; note: string; picked_by: string; week_start: string } | null = null;
 const destinations: Destination[] = clone(destinationsSeed) as unknown as Destination[];
 const itineraries: Itinerary[] = clone(itinerariesSeed) as unknown as Itinerary[];
 const profile = clone(profileSeed);
@@ -91,6 +121,16 @@ const mockUsers: MockUser[] = [
     password: 'soksan123',
     avatar_url: '/images/traveler-dara.jpg',
     role: 'user',
+  },
+  {
+    // Phase 5: in-app admin behind role:admin.
+    id: 4,
+    name: 'Soksan Admin',
+    name_kh: 'អ្នកគ្រប់គ្រង សុខសាន្ត',
+    email: 'admin@soksan.app',
+    password: 'soksan123',
+    avatar_url: '/images/traveler-dara.jpg',
+    role: 'admin',
   },
 ];
 let nextUserId = 100;
@@ -387,14 +427,16 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
   if (path === '/api/posts') {
     if (method === 'GET') {
       if (url.searchParams.get('format') === 'clips') {
-        const clips = posts.filter((p) => p.media.some((m) => m.media_type === 'video') || p.media_type === 'video');
+        const clips = visiblePosts().filter(
+          (p) => p.media.some((m) => m.media_type === 'video') || p.media_type === 'video',
+        );
         // TikTok-style paginated feed: page size 3, empty page = end of feed.
         const page = Math.max(1, Number(url.searchParams.get('page') || '1'));
         const pageSize = 3;
         const start = (page - 1) * pageSize;
         return jsonResponse(clone(clips.slice(start, start + pageSize)));
       }
-      let list = [...posts];
+      let list = [...visiblePosts()];
       const category = url.searchParams.get('category');
       const search = url.searchParams.get('search');
       if (category) list = list.filter((p) => p.category === category);
@@ -458,9 +500,15 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         (c) => c.id === Number(body.commune_id),
       );
       const derivedProvince = pickedCommune ? geoProvinceOf(pickedCommune.id)?.name : undefined;
+      // Phase 5 first-post gate (mirrors backend PostService): an account
+      // with no published posts gets its FIRST post held for admin review.
+      const firstPostGate = !posts.some(
+        (p) => p.profile_id === user.id && (!p.status || p.status === 'published'),
+      );
       const post: Post = {
         id: nextPostId++,
         profile_id: user.id,
+        status: firstPostGate ? 'pending_review' : 'published',
         category: body.category,
         location_name: body.location_name,
         province: derivedProvince || body.province,
@@ -698,8 +746,7 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     if (name.length < 2 || placeName.length < 2) {
       return jsonResponse({ error: 'Business name and place are required' }, 422);
     }
-    // DEMO: auto-approve so the owner dashboard is usable. Production keeps
-    // new businesses in `pending` until an admin approves them (Phase 5).
+    // Phase 5: new businesses wait for admin approval (queue in /admin).
     const business: Business = {
       id: nextBusinessId++,
       owner_id: user.id,
@@ -709,7 +756,7 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       description: body.description || '',
       phone: body.phone || '',
       tier: 'verified',
-      status: 'approved',
+      status: 'pending',
       place_name: placeName,
       lat: typeof body.lat === 'number' ? body.lat : null,
       lng: typeof body.lng === 'number' ? body.lng : null,
@@ -830,6 +877,127 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       from: from.toISOString(),
       to: to.toISOString(),
     });
+  }
+
+  /* ---- Hidden Gem of the Week: public read (Phase 5) ---- */
+  if (path === '/api/hidden-gem/current' && method === 'GET') {
+    if (!currentHiddenGem) return jsonResponse({ current: null });
+    const post = visiblePosts().find((p) => p.id === currentHiddenGem?.post_id);
+    return jsonResponse({ current: { ...clone(currentHiddenGem), post: post ? clone(post) : null } });
+  }
+
+  /* ---- admin panel behind role:admin (Phase 5) ----
+   * Every action records an audit-log entry; the real backend enforces the
+   * same with middleware('role:admin') + AuditService. */
+  if (path.startsWith('/api/admin')) {
+    const admin = bearerUser(init);
+    if (!admin) return unauthorized();
+    if (admin.role !== 'admin') {
+      return jsonResponse({ error: 'Admin role required' }, 403);
+    }
+
+    if (path === '/api/admin/posts/pending' && method === 'GET') {
+      return jsonResponse(clone(posts.filter((p) => p.status === 'pending_review')));
+    }
+    if (path === '/api/admin/posts/approve' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      post.status = 'published';
+      recordAudit(admin, 'post.approve', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(post));
+    }
+    if (path === '/api/admin/posts/reject' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      post.status = 'rejected';
+      recordAudit(admin, 'post.reject', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(post));
+    }
+
+    if (path === '/api/admin/businesses/pending' && method === 'GET') {
+      return jsonResponse(clone(businesses.filter((b) => b.status === 'pending').map(attachSubscription)));
+    }
+    if (path === '/api/admin/businesses/approve' && method === 'POST') {
+      const business = businesses.find((b) => b.id === Number(body.business_id));
+      if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+      business.status = 'approved';
+      recordAudit(admin, 'business.approve', business.name);
+      return jsonResponse(clone(business));
+    }
+    if (path === '/api/admin/businesses/reject' && method === 'POST') {
+      const business = businesses.find((b) => b.id === Number(body.business_id));
+      if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+      business.status = 'rejected';
+      recordAudit(admin, 'business.reject', business.name);
+      return jsonResponse(clone(business));
+    }
+
+    if (path === '/api/admin/placements' && method === 'GET') {
+      return jsonResponse(clone(partnersData.partners));
+    }
+    if (path === '/api/admin/placements' && method === 'POST') {
+      const placement = {
+        id: Math.max(0, ...partnersData.partners.map((p) => p.id)) + 1,
+        business_name: body.business_name,
+        business_name_kh: body.business_name_kh || null,
+        partner_type: body.partner_type || 'local-guide',
+        province: body.province || 'Phnom Penh',
+        city: body.city || '',
+        phone: body.phone || '',
+        telegram_url: body.telegram_url || 'https://t.me/soksan_network',
+        avatar_url: body.avatar_url || 'https://picsum.photos/seed/soksan-partner/200/200',
+        cover_url: body.cover_url || 'https://picsum.photos/seed/soksan-partner/900/400',
+        description_en: body.description || '',
+        description_kh: body.description || '',
+        rating: 5,
+        review_count: 0,
+        completed_trips: 0,
+        verified: true,
+        active: body.active !== false,
+        monthly_fee: 0,
+        starts_at: body.starts_at || null,
+        ends_at: body.ends_at || null,
+      };
+      partnersData.partners.push(placement);
+      recordAudit(admin, 'placement.schedule', placement.business_name);
+      return jsonResponse(clone(placement), 201);
+    }
+    if (path === '/api/admin/placements/update' && method === 'POST') {
+      const placement = partnersData.partners.find((p) => p.id === Number(body.id));
+      if (!placement) return jsonResponse({ error: 'Placement not found' }, 404);
+      if (typeof body.active === 'boolean') placement.active = body.active;
+      if ('starts_at' in body) placement.starts_at = body.starts_at;
+      if ('ends_at' in body) placement.ends_at = body.ends_at;
+      recordAudit(
+        admin,
+        'placement.update',
+        `${placement.business_name} (active=${placement.active})`,
+      );
+      return jsonResponse(clone(placement));
+    }
+
+    if (path === '/api/admin/hidden-gem' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be the Hidden Gem' }, 422);
+      }
+      const weekStart = new Date();
+      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // Monday
+      currentHiddenGem = {
+        post_id: post.id,
+        note: body.note || '',
+        picked_by: admin.name,
+        week_start: weekStart.toISOString(),
+      };
+      recordAudit(admin, 'hidden_gem.pick', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(currentHiddenGem), 201);
+    }
+
+    if (path === '/api/admin/audit-logs' && method === 'GET') {
+      return jsonResponse(clone(auditLogs.slice(0, 200)));
+    }
   }
 
   /* ---- conversations / messages ---- */

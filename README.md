@@ -122,7 +122,15 @@ docker compose run --rm api php artisan test
 | POST     | `/api/v1/businesses/{id}/leads`           | public | log a lead event (`call` / `message` / `directions`) |
 | GET      | `/api/v1/businesses/{id}/leads/summary`   | owner/admin | 7-day lead totals, optional `from`/`to` range |
 | GET      | `/api/v1/placements/active`               | public | partner placements inside their admin date window (always labeled ដៃគូ/Partner; never affects ranking) |
-| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin) |
+| GET      | `/api/v1/hidden-gem/current`              | public | Hidden Gem of the Week (editorial admin pick; never score-derived) |
+| GET      | `/api/v1/admin/posts/pending`             | role:admin | first-post queue (`posts.status = pending_review`) |
+| POST     | `/api/v1/admin/posts/{post}/approve\|reject` | role:admin | publish or reject a queued post (audited) |
+| GET      | `/api/v1/admin/businesses/pending`        | role:admin | business registrations awaiting review |
+| POST     | `/api/v1/admin/businesses/{business}/approve\|reject` | role:admin | approve or reject a business (audited) |
+| GET/POST/PATCH | `/api/v1/admin/placements`        | role:admin | schedule partner placements (date ranges + active toggle; audited) |
+| POST     | `/api/v1/admin/hidden-gem`                | role:admin | pick Hidden Gem of the Week (published posts only, one per ISO week; audited) |
+| GET      | `/api/v1/admin/audit-logs`                | role:admin | append-only log of every admin action |
+| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin); a new author's FIRST post is held as `pending_review` |
 | PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
 | DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |
 | POST     | `/api/v1/uploads`            | token  | base64 media, allowlist + size limits |

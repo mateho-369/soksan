@@ -44,14 +44,21 @@ Nothing outside those three files imports from `src/demo/`.
   stubbed.
 - Phase 3 businesses: `businesses.json` seeds ONE business for the demo
   user (Dara) so the owner dashboard and the Bakong KHQR upgrade flow are
-  exercisable. The demo auto-approves registrations and confirms KHQR
-  payments instantly — production holds businesses `pending` for admin
-  approval (Phase 5) and verifies payments against the Bakong API.
+  exercisable. The demo confirms KHQR payments instantly — production
+  verifies payments against the Bakong API.
 - Phase 4 monetization: `lead_events.json` seeds call/message/directions
   taps for the demo business (dates within 7 days of 2026-09-30). Partner
   placements carry admin date ranges in `partners.json` (`starts_at` /
   `ends_at`); the partner with the expired window is filtered out by the
   demo seam exactly as `PartnerPlacementService::activeAt()` does.
+- Phase 5 admin: the seam mirrors the moderation pipeline. A new author's
+  FIRST post is held as `pending_review` (all seeded posts have no status
+  and are treated as published). New business registrations start
+  `pending`. Log in as `admin@soksan.app` / `soksan123` (mock user id 4,
+  `role: admin`) and open `/admin` for the queues, placement scheduling,
+  the Hidden Gem picker and the audit log; the same rules are enforced at
+  `/api/admin/*` (401 anonymous, 403 non-admin) and every action appends
+  an audit row. `GET /api/hidden-gem/current` powers the home banner.
 
 ## Media sources (placeholders)
 

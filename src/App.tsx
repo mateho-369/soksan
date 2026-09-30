@@ -19,6 +19,7 @@ const MerchantCenter = lazy(() => import('./pages/MerchantCenter'));
 const BusinessRegister = lazy(() => import('./pages/BusinessRegister'));
 const BusinessDashboard = lazy(() => import('./pages/BusinessDashboard'));
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
                 <Route path="/partners" element={<Partners />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/merchant" element={<MerchantCenter />} />
+                <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/business/register" element={<BusinessRegister />} />
                 <Route path="/business/dashboard" element={<BusinessDashboard />} />
                 {/* Public profile (Phase 4 lead surface). Static routes above

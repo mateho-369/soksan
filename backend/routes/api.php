@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkController;
 use App\Http\Controllers\Api\V1\BusinessBillingController;
 use App\Http\Controllers\Api\V1\BusinessController;
+use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\CommentController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\HiddenGemController;
 use App\Http\Controllers\Api\V1\LeadController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\LikeController;
@@ -22,8 +24,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 | API v1 — user-facing SokSan Network
 |--------------------------------------------------------------------------
-| The future admin panel will be a separate website consuming this same
-| versioned API (plus its own /api/v1/admin routes, guarded by role:admin).
+| Phase 5: the admin panel is served in-app behind role:admin via the
+| /api/v1/admin routes below (extractable to a separate app later).
 */
 
 Route::prefix('v1')->group(function () {
@@ -43,6 +45,9 @@ Route::prefix('v1')->group(function () {
 
     // Phase 4 — public partner placements inside their admin date window.
     Route::get('placements/active', [PartnerPlacementController::class, 'active']);
+
+    // Phase 5 — Hidden Gem of the Week (editorial pick, never ranking).
+    Route::get('hidden-gem/current', [HiddenGemController::class, 'current']);
 
     // Auth (heavily rate limited) -----------------------------------------
     Route::middleware('throttle:auth')->group(function () {
@@ -92,6 +97,24 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin')->group(function () {
             Route::get('ops/health', [OpsController::class, 'health']);
             Route::get('ops/metrics', [OpsController::class, 'metrics']);
+        });
+
+        // Phase 5 — in-app admin behind role:admin. Every action is audited.
+        Route::prefix('admin')->middleware('role:admin')->group(function () {
+            Route::get('posts/pending', [AdminController::class, 'pendingPosts']);
+            Route::post('posts/{post}/approve', [AdminController::class, 'approvePost']);
+            Route::post('posts/{post}/reject', [AdminController::class, 'rejectPost']);
+
+            Route::get('businesses/pending', [AdminController::class, 'pendingBusinesses']);
+            Route::post('businesses/{business}/approve', [AdminController::class, 'approveBusiness']);
+            Route::post('businesses/{business}/reject', [AdminController::class, 'rejectBusiness']);
+
+            Route::get('placements', [AdminController::class, 'placements']);
+            Route::post('placements', [AdminController::class, 'storePlacement']);
+            Route::patch('placements/{placement}', [AdminController::class, 'updatePlacement']);
+
+            Route::post('hidden-gem', [AdminController::class, 'pickHiddenGem']);
+            Route::get('audit-logs', [AdminController::class, 'auditLogs']);
         });
     });
 });

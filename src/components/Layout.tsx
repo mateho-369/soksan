@@ -16,6 +16,7 @@ import {
   MapPinCheck,
   LogIn,
   LogOut,
+  ShieldCheck,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -91,6 +92,13 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Megaphone />
               <span>{t('navigation.merchant')}</span>
             </NavLink>
+            {/* Phase 5: admin entry point, visible only to role:admin. */}
+            {user?.role === 'admin' && (
+              <NavLink to="/admin" className="merchant-nav-button admin-nav-button">
+                <ShieldCheck />
+                <span>{t('navigation.admin')}</span>
+              </NavLink>
+            )}
             {user ? (
               <div className="auth-chip">
                 <StreakChip />
