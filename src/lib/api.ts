@@ -18,6 +18,8 @@ import boostsSeed from '../demo/data/boosts.json';
 import rankingsSeed from '../demo/data/rankings.json';
 import geographySeed from '../demo/data/geography.json';
 import commentsSeed from '../demo/data/comments.json';
+import businessesSeed from '../demo/data/businesses.json';
+import type { Business, BusinessSubscription, KhqrInvoice } from '../types';
 import type {
   Post,
   Comment,
@@ -235,6 +237,36 @@ let nextMessageId = 1000;
 let nextPostId = 1000;
 let nextMediaId = 5000;
 let nextCampaignId = 1000;
+
+/* --------------------------- businesses (Phase 3) ----------------------- */
+// Owner dashboard + two-tier registration (free Verified, paid Boosted via
+// Bakong KHQR). Mirrors the Laravel BusinessService/BakongService contract.
+const businesses: Business[] = clone(businessesSeed.businesses) as unknown as Business[];
+const businessSubscriptions: BusinessSubscription[] = clone(
+  businessesSeed.subscriptions,
+) as unknown as BusinessSubscription[];
+let nextBusinessId = 100;
+let nextSubscriptionId = 100;
+let nextInvoiceSeq = 1000;
+
+/** Single source of truth for the Boosted price in the demo seam. */
+export const DEMO_BOOSTED_PRICE_USD = 9.9;
+
+const attachSubscription = (business: Business): Business => ({
+  ...business,
+  subscription: businessSubscriptions.find((sub) => sub.business_id === business.id) || null,
+});
+
+/** Demo KHQR payload. Production: BakongService returns the real EMV string. */
+const buildKhqrPayload = (invoiceRef: string, amountUsd: number, merchant: string): string =>
+  [
+    'KHQR', // payment rail
+    'BAKONG', // acquirer (demo)
+    merchant.replace(/\s+/g, '').slice(0, 20).toUpperCase(),
+    invoiceRef,
+    amountUsd.toFixed(2),
+    'USD',
+  ].join('|');
 
 /* ------------------------------ helpers --------------------------------- */
 
@@ -625,6 +657,102 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       return jsonResponse({ source: 'manual', lat: body.lat, lng: body.lng, confirmed: true });
     }
     return jsonResponse({ error: 'Provide a place_id or lat/lng' }, 422);
+  }
+
+  /* ---- businesses: registration + Boosted upgrade (Phase 3) ---- */
+  if (path === '/api/businesses/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(clone(businesses.filter((b) => b.owner_id === user.id).map(attachSubscription)));
+  }
+
+  if (path === '/api/businesses' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const name = String(body.name || '').trim();
+    const placeName = String(body.place_name || '').trim();
+    if (name.length < 2 || placeName.length < 2) {
+      return jsonResponse({ error: 'Business name and place are required' }, 422);
+    }
+    // DEMO: auto-approve so the owner dashboard is usable. Production keeps
+    // new businesses in `pending` until an admin approves them (Phase 5).
+    const business: Business = {
+      id: nextBusinessId++,
+      owner_id: user.id,
+      name,
+      name_kh: body.name_kh || null,
+      category: body.category || 'local-food',
+      description: body.description || '',
+      phone: body.phone || '',
+      tier: 'verified',
+      status: 'approved',
+      place_name: placeName,
+      lat: typeof body.lat === 'number' ? body.lat : null,
+      lng: typeof body.lng === 'number' ? body.lng : null,
+      subscription: null,
+      created_at: nowISO(),
+    };
+    businesses.push(business);
+    return jsonResponse(clone(business), 201);
+  }
+
+  if (path === '/api/businesses/upgrade' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((b) => b.id === Number(body.business_id) && b.owner_id === user.id);
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    // One live subscription per business.
+    const existing = businessSubscriptions.find(
+      (sub) => sub.business_id === business.id && sub.status !== 'cancelled',
+    );
+    if (existing && existing.status === 'active') {
+      return jsonResponse({ error: 'This business is already Boosted' }, 409);
+    }
+    const invoiceRef = `KHQR-${nextInvoiceSeq++}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    let subscription = existing && existing.status === 'pending_payment' ? existing : null;
+    if (!subscription) {
+      subscription = {
+        id: nextSubscriptionId++,
+        business_id: business.id,
+        status: 'pending_payment',
+        amount_usd: DEMO_BOOSTED_PRICE_USD,
+        currency: 'USD',
+        invoice_ref: invoiceRef,
+        starts_at: null,
+        expires_at: null,
+        paid_at: null,
+      };
+      businessSubscriptions.push(subscription);
+    }
+    const invoice: KhqrInvoice = {
+      invoice_ref: invoiceRef,
+      business_id: business.id,
+      amount_usd: DEMO_BOOSTED_PRICE_USD,
+      currency: 'USD',
+      khqr_payload: buildKhqrPayload(invoiceRef, DEMO_BOOSTED_PRICE_USD, business.name),
+      expires_at: expiresAt,
+    };
+    return jsonResponse({ invoice, subscription: clone(subscription) }, 201);
+  }
+
+  if (path === '/api/businesses/upgrade/confirm' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((b) => b.id === Number(body.business_id) && b.owner_id === user.id);
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    const subscription = businessSubscriptions.find(
+      (sub) => sub.business_id === business.id && sub.status === 'pending_payment',
+    );
+    if (!subscription) return jsonResponse({ error: 'No payment pending' }, 409);
+    // DEMO: instant confirmation. Production verifies against the Bakong
+    // transaction (BakongService) before activating anything.
+    subscription.status = 'active';
+    subscription.paid_at = nowISO();
+    subscription.starts_at = nowISO();
+    subscription.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    business.tier = 'boosted';
+    return jsonResponse(clone(attachSubscription(business)));
   }
 
   /* ---- conversations / messages ---- */

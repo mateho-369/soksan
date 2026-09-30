@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkController;
+use App\Http\Controllers\Api\V1\BusinessBillingController;
+use App\Http\Controllers\Api\V1\BusinessController;
 use App\Http\Controllers\Api\V1\CommentController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
@@ -66,6 +68,12 @@ Route::prefix('v1')->group(function () {
         // Phase 2 — one-time Google Places confirmation (business) or a
         // manual pin (regular users). See PlacesService.
         Route::post('places/confirm', [PlaceController::class, 'confirm']);
+
+        // Phase 3 — business registration + Boosted-tier billing (Bakong KHQR).
+        Route::get('businesses/mine', [BusinessController::class, 'mine']);
+        Route::post('businesses', [BusinessController::class, 'store']);
+        Route::post('businesses/{business}/upgrade', [BusinessBillingController::class, 'upgrade']);
+        Route::post('businesses/{business}/upgrade/confirm', [BusinessBillingController::class, 'confirm']);
 
         // Monitoring hooks for the scaling plan (queue depth, DB
         // connections, Redis liveness). Admin-only, never public.

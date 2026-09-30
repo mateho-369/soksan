@@ -130,6 +130,50 @@ export interface Destination {
   is_featured: boolean;
 }
 
+/* Phase 3 — business registration */
+export type BusinessTier = 'verified' | 'boosted';
+export type BusinessStatus = 'pending' | 'approved' | 'rejected';
+
+export interface BusinessSubscription {
+  id: number;
+  business_id: number;
+  status: 'pending_payment' | 'active' | 'expired' | 'cancelled';
+  amount_usd: number;
+  currency: string;
+  invoice_ref: string;
+  starts_at: string | null;
+  expires_at: string | null;
+  paid_at: string | null;
+}
+
+export interface Business {
+  id: number;
+  owner_id: number;
+  name: string;
+  name_kh: string | null;
+  category: string;
+  description: string;
+  phone: string;
+  tier: BusinessTier;
+  status: BusinessStatus;
+  place_name: string;
+  lat: number | null;
+  lng: number | null;
+  subscription: BusinessSubscription | null;
+  created_at: string;
+}
+
+/** KHQR invoice returned by POST /businesses/:id/upgrade. */
+export interface KhqrInvoice {
+  invoice_ref: string;
+  business_id: number;
+  amount_usd: number;
+  currency: string;
+  /** What the QR encodes (real Bakong KHQR string in production). */
+  khqr_payload: string;
+  expires_at: string;
+}
+
 export interface Itinerary {
   id: number;
   title: string;

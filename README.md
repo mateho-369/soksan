@@ -76,6 +76,8 @@ docker compose run --rm api php artisan test
 | `MEDIA_DISK`                   | `public` (local) or `r2` (Cloudflare R2)       |
 | `R2_*`                         | R2 bucket credentials (production only)        |
 | `GOOGLE_PLACES_API_KEY`        | One-time business-registration confirm only. Public maps use OpenFreeMap / PMTiles, never Google. |
+| `BAKONG_API_KEY` / `BAKONG_MERCHANT_ID` / `BAKONG_API_URL` | Bakong KHQR billing for the Boosted tier (Phase 3) |
+| `BAKONG_ALLOW_DEMO_CONFIRM`    | Local/demo only: allow activating subscriptions without the real gateway |
 
 ## Folder map
 
@@ -113,6 +115,10 @@ docker compose run --rm api php artisan test
 | GET      | `/api/v1/leaderboard`        | public | province leaderboard (Redis ZSET) |
 | GET      | `/api/v1/rankings?scope=communes\|districts\|provinces` | public | geography rankings, recency decay (21-day half-life), rolls up commune → district → province |
 | POST     | `/api/v1/places/confirm`     | token  | one-time Google Places confirmation (`place_id`) or manual pin (`lat`/`lng`) |
+| GET      | `/api/v1/businesses/mine`    | token  | owner dashboard: the caller's businesses + active subscription |
+| POST     | `/api/v1/businesses`         | token  | register business (free Verified tier; production holds `pending` for admin approval) |
+| POST     | `/api/v1/businesses/{id}/upgrade`         | owner | open a Bakong KHQR invoice for the Boosted tier |
+| POST     | `/api/v1/businesses/{id}/upgrade/confirm` | owner | verify payment server-side, activate subscription |
 | POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin) |
 | PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
 | DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |

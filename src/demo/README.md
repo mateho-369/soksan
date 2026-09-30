@@ -42,6 +42,11 @@ Nothing outside those three files imports from `src/demo/`.
   manual-pin path (`POST /api/places/confirm` with `lat`/`lng`) is mirrored
   in the demo seam; the Google Places branch needs a production key and is
   stubbed.
+- Phase 3 businesses: `businesses.json` seeds ONE business for the demo
+  user (Dara) so the owner dashboard and the Bakong KHQR upgrade flow are
+  exercisable. The demo auto-approves registrations and confirms KHQR
+  payments instantly — production holds businesses `pending` for admin
+  approval (Phase 5) and verifies payments against the Bakong API.
 
 ## Media sources (placeholders)
 

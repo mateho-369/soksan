@@ -1,0 +1,22 @@
+{
+  "_comment": "Phase 3 demo businesses. REMOVE WITH THE DEMO LAYER — the real API owns this table. owner_id 3 = demo user Dara, so the owner dashboard has something to show and the Boosted upgrade (Bakong KHQR) can be exercised.",
+  "businesses": [
+    {
+      "id": 1,
+      "owner_id": 3,
+      "name": "Dara's Riverside Café",
+      "name_kh": "កាហ្វេមាត់ទន្លេរបស់ដារ៉ា",
+      "category": "aesthetic-cafes",
+      "description": "Slow coffee by the river; sunset seats go first.",
+      "phone": "+855 12 345 678",
+      "tier": "verified",
+      "status": "approved",
+      "place_name": "Sisowath Quay, Phnom Penh",
+      "lat": 11.5764,
+      "lng": 104.9282,
+      "subscription": null,
+      "created_at": "2026-09-12T08:30:00+00:00"
+    }
+  ],
+  "subscriptions": []
+}

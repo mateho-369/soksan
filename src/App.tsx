@@ -16,6 +16,8 @@ const Messages = lazy(() => import('./pages/Messages'));
 const Partners = lazy(() => import('./pages/Partners'));
 const Profile = lazy(() => import('./pages/Profile'));
 const MerchantCenter = lazy(() => import('./pages/MerchantCenter'));
+const BusinessRegister = lazy(() => import('./pages/BusinessRegister'));
+const BusinessDashboard = lazy(() => import('./pages/BusinessDashboard'));
 
 export default function App() {
   return (
@@ -38,6 +40,8 @@ export default function App() {
                 <Route path="/partners" element={<Partners />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/merchant" element={<MerchantCenter />} />
+                <Route path="/business/register" element={<BusinessRegister />} />
+                <Route path="/business/dashboard" element={<BusinessDashboard />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
