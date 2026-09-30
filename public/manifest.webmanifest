@@ -1,0 +1,17 @@
+{
+  "name": "SokSan Network",
+  "short_name": "SokSan",
+  "description": "Discover Cambodia — community travel feed, rankings and local businesses.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9f6f0",
+  "theme_color": "#7a9a82",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

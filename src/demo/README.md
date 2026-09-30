@@ -59,6 +59,15 @@ Nothing outside those three files imports from `src/demo/`.
   the Hidden Gem picker and the audit log; the same rules are enforced at
   `/api/admin/*` (401 anonymous, 403 non-admin) and every action appends
   an audit row. `GET /api/hidden-gem/current` powers the home banner.
+- Phase 6 discovery: `GET /api/trending` re-weights the SAME engagement
+  formula as rankings with a 3-day half-life inside a 14-day window
+  (`TRENDING_HALF_LIFE_DAYS` / `TRENDING_WINDOW_DAYS`), so it surfaces what
+  is hot NOW without touching ranking state. Trip lists (`/api/trips*`)
+  accept published posts only and are shared by slug. Offline save lives in
+  `src/lib/offlineStore.ts` (localStorage) plus a production-only service
+  worker (`public/sw.js`) that caches the app shell — media files come from
+  CDN placeholders, so only the shell + explicitly saved posts are
+  guaranteed offline.
 
 ## Media sources (placeholders)
 

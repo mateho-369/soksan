@@ -15,12 +15,16 @@ import {
   MessageCircle,
   Send,
   Zap,
+  ListPlus,
+  HardDriveDownload,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ErrorState } from '../components/States';
 import PostComposer from '../components/PostComposer';
 import PostViewer from '../components/PostViewer';
 import BoostModal from '../components/BoostModal';
+import TripPicker from '../components/trips/TripPicker';
+import { isSavedOffline, removeOffline, saveOffline } from '../lib/offlineStore';
 import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
 import HiddenGemBanner from '../components/HiddenGemBanner';
 import { EmptyState } from '../components/States';
@@ -48,6 +52,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [boostPost, setBoostPost] = useState<Post | null>(null);
+  const [tripPickPost, setTripPickPost] = useState<Post | null>(null);
+  // Bumped after toggling offline saves so the buttons re-read the store.
+  const [offlineTick, setOfflineTick] = useState(0);
   const [viewerPostId, setViewerPostId] = useState<number | null>(null);
   const [viewerComments, setViewerComments] = useState(false);
 
@@ -178,6 +185,18 @@ export default function Home() {
   const closeViewer = () => {
     setViewerPostId(null);
     setViewerComments(false);
+  };
+
+  // Phase 6 — Trip Planner + offline save entry points on every feed post.
+  const pickTrip = (post: Post) => {
+    if (!requireAuth(navigate)) return;
+    setTripPickPost(post);
+  };
+
+  const toggleOffline = (post: Post) => {
+    if (isSavedOffline(post.id)) removeOffline(post.id);
+    else saveOffline(post);
+    setOfflineTick((tick) => tick + 1);
   };
 
   const viewerPost = posts.find((post) => post.id === viewerPostId) || null;
@@ -421,6 +440,18 @@ export default function Home() {
                         <button onClick={() => interact(post.id, 'share')}>
                           <Send /> {t('social.share')}
                         </button>
+                        {/* Phase 6 — save this place into a shareable trip. */}
+                        <button onClick={() => pickTrip(post)} aria-label={t('trips.addLabel')}>
+                          <ListPlus /> {t('trips.addShort')}
+                        </button>
+                        {/* Phase 6 — keep this post readable with no signal. */}
+                        <button
+                          className={isSavedOffline(post.id) ? 'offline-saved' : ''}
+                          aria-pressed={offlineTick >= 0 && isSavedOffline(post.id)}
+                          onClick={() => toggleOffline(post)}
+                        >
+                          <HardDriveDownload /> {t('offline.saveShort')}
+                        </button>
                         {post.business_name && (
                           <button className="facebook-book" onClick={() => navigate('/profile')}>
                             {t('feed.exploreBook')}
@@ -470,6 +501,7 @@ export default function Home() {
         onComment={() => fetchFeed(false)}
       />
       <BoostModal post={boostPost} onClose={() => setBoostPost(null)} onComplete={() => fetchFeed(false)} />
+      {tripPickPost && <TripPicker post={tripPickPost} onClose={() => setTripPickPost(null)} />}
       <GemToast moment={gemMoment} onDismiss={dismissGem} />
     </div>
   );

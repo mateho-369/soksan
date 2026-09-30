@@ -13,10 +13,13 @@ import {
   Search,
   Bell,
   Megaphone,
+  Map,
   MapPinCheck,
   LogIn,
   LogOut,
   ShieldCheck,
+  HardDriveDownload,
+  WifiOff,
   UserPlus,
   X,
 } from 'lucide-react';
@@ -26,6 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import StreakChip from '../ui/StreakChip';
 import { pressable, springs } from '../ui/motion';
 import type { Ad } from '../types';
+import '../styles/discovery.css';
 
 const MotionNavLink = motion.create(NavLink);
 
@@ -60,7 +64,22 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/messages', label: t('navigation.messages'), icon: MessageCircle },
     { to: '/partners', label: t('navigation.partners'), icon: BusFront },
     { to: '/profile', label: t('navigation.profile'), icon: UserRound },
+    // Phase 6 — Trip Planner (mobile-first: lives in the bottom nav).
+    { to: '/trips', label: t('navigation.trips'), icon: Map },
   ];
+
+  // Phase 6 — offline banner: shown while the device has no connectivity.
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+    };
+  }, []);
 
   return (
     <div className={language === 'kh' ? 'font-kh' : ''}>
@@ -78,6 +97,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <MotionNavLink to="/rankings" {...pressable}>
               <Trophy /> <span>{t('navigation.rankings')}</span>
             </MotionNavLink>
+            <MotionNavLink to="/trips" {...pressable}>
+              <Map /> <span>{t('navigation.trips')}</span>
+            </MotionNavLink>
           </nav>
           <form className="nav-search" onSubmit={submitSearch}>
             <Search size={18} />
@@ -88,6 +110,14 @@ export default function Layout({ children }: { children: ReactNode }) {
             />
           </form>
           <div className="nav-actions">
+            <NavLink
+              to="/offline"
+              className="icon-button offline-library-button"
+              aria-label={t('offline.title')}
+              title={t('offline.title')}
+            >
+              <HardDriveDownload size={17} />
+            </NavLink>
             <NavLink to="/merchant" className="merchant-nav-button">
               <Megaphone />
               <span>{t('navigation.merchant')}</span>
@@ -170,6 +200,14 @@ export default function Layout({ children }: { children: ReactNode }) {
               <X />
             </button>
           </form>
+        </div>
+      )}
+
+      {!online && (
+        <div className="offline-banner" role="status">
+          <WifiOff size={15} />
+          <span>{t('offline.banner')}</span>
+          <NavLink to="/offline">{t('offline.openLibrary')}</NavLink>
         </div>
       )}
 

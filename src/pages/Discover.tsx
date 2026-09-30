@@ -6,6 +6,7 @@ import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'l
 import { useLanguage } from '../contexts/LanguageContext';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import SokSanMap from '../components/map/SokSanMap';
+import TrendingRail from '../components/TrendingRail';
 import { isInsideCambodia, type LatLng } from '../lib/mapConfig';
 import type { Destination, Category } from '../types';
 
@@ -152,6 +153,8 @@ export default function Discover() {
           <h1>{t('discoveryTitle')}</h1>
           <p>{t('discoverySubtitle')}</p>
         </div>
+        {/* Phase 6 — recency-weighted hot posts, refreshed per visit. */}
+        <TrendingRail />
         <div className="discover-filters">
           <Search size={17} />
           <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter places">

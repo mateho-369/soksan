@@ -123,6 +123,12 @@ docker compose run --rm api php artisan test
 | GET      | `/api/v1/businesses/{id}/leads/summary`   | owner/admin | 7-day lead totals, optional `from`/`to` range |
 | GET      | `/api/v1/placements/active`               | public | partner placements inside their admin date window (always labeled ដៃគូ/Partner; never affects ranking) |
 | GET      | `/api/v1/hidden-gem/current`              | public | Hidden Gem of the Week (editorial admin pick; never score-derived) |
+| GET      | `/api/v1/trending`                        | public | Trending Now — engagement × 0.5^(age/3d) inside a 14-day window; read-only, never writes ranking state |
+| GET      | `/api/v1/trips/shared/{slug}`             | public | a shareable trip list (404 when private or missing) |
+| GET      | `/api/v1/trips/mine`                      | token  | the caller's trip lists |
+| POST     | `/api/v1/trips`                           | token  | create a trip list (auto slug) |
+| PATCH/DEL | `/api/v1/trips/{trip}`                   | owner  | rename / set privacy / delete a trip |
+| POST/DEL | `/api/v1/trips/{trip}/posts[/{post}]`     | owner  | add/remove stops — published posts only |
 | GET      | `/api/v1/admin/posts/pending`             | role:admin | first-post queue (`posts.status = pending_review`) |
 | POST     | `/api/v1/admin/posts/{post}/approve\|reject` | role:admin | publish or reject a queued post (audited) |
 | GET      | `/api/v1/admin/businesses/pending`        | role:admin | business registrations awaiting review |

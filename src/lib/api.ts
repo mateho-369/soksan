@@ -72,6 +72,40 @@ const recordAudit = (user: MockUser, action: string, subject: string) => {
 };
 /** Hidden Gem of the Week — editorial pick, never ranking. */
 let currentHiddenGem: { post_id: number; note: string; picked_by: string; week_start: string } | null = null;
+
+/* ------------------------- trip planner (Phase 6) ----------------------- */
+/** Mirrors backend TripService: ordered published-post lists, shared by slug. */
+interface TripItemRow {
+  id: number;
+  post_id: number;
+  sort_order: number;
+}
+interface TripListRow {
+  id: number;
+  user_id: number;
+  title: string;
+  slug: string;
+  description: string;
+  is_public: boolean;
+  items: TripItemRow[];
+  created_at: string;
+  updated_at: string;
+}
+const tripLists: TripListRow[] = [];
+let nextTripId = 1;
+let nextTripItemId = 1;
+const tripSlug = () =>
+  Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+
+/* Phase 6 — Trending Now mirrors backend TrendingService: same engagement
+ * weighting as rankings but a 3-day half-life inside a 14-day window. */
+export const TRENDING_HALF_LIFE_DAYS = 3;
+export const TRENDING_WINDOW_DAYS = 14;
+const trendScore = (post: Post, now: Date): number => {
+  const ageDays = Math.max(0, (now.getTime() - new Date(post.created_at).getTime()) / 86400000);
+  const engagement = 1 + post.like_count + 2 * post.comment_count + post.share_count + (post.view_count ?? 0) / 100;
+  return engagement * Math.pow(0.5, ageDays / TRENDING_HALF_LIFE_DAYS);
+};
 const destinations: Destination[] = clone(destinationsSeed) as unknown as Destination[];
 const itineraries: Itinerary[] = clone(itinerariesSeed) as unknown as Itinerary[];
 const profile = clone(profileSeed);
@@ -884,6 +918,136 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     if (!currentHiddenGem) return jsonResponse({ current: null });
     const post = visiblePosts().find((p) => p.id === currentHiddenGem?.post_id);
     return jsonResponse({ current: { ...clone(currentHiddenGem), post: post ? clone(post) : null } });
+  }
+
+  /* ---- Trending Now: recency-weighted hot posts (Phase 6) ---- */
+  if (path === '/api/trending' && method === 'GET') {
+    const now = new Date();
+    const windowStart = now.getTime() - TRENDING_WINDOW_DAYS * 86400000;
+    const scored = visiblePosts()
+      .filter((p) => new Date(p.created_at).getTime() >= windowStart)
+      .map((p) => ({ post: p, score: trendScore(p, now) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    return jsonResponse({
+      half_life_days: TRENDING_HALF_LIFE_DAYS,
+      window_days: TRENDING_WINDOW_DAYS,
+      posts: clone(scored.map((s) => s.post)),
+    });
+  }
+
+  /* ---- Trip Planner: shareable lists of published posts (Phase 6) ---- */
+  const tripPayload = (list: TripListRow) => ({
+    id: list.id,
+    title: list.title,
+    slug: list.slug,
+    description: list.description,
+    is_public: list.is_public,
+    created_at: list.created_at,
+    updated_at: list.updated_at,
+    items_count: list.items.length,
+    owner: (() => {
+      const owner = mockUsers.find((u) => u.id === list.user_id);
+      return owner ? publicUser(owner) : null;
+    })(),
+    items: list.items
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((item) => {
+        const p = visiblePosts().find((vp) => vp.id === item.post_id);
+        return p ? { id: item.id, sort_order: item.sort_order, post: clone(p) } : null;
+      })
+      .filter(Boolean),
+  });
+
+  if (path === '/api/trips' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const title = String(body?.title || '').trim();
+    if (title.length < 2) return jsonResponse({ error: 'Trip title is required' }, 422);
+    const list: TripListRow = {
+      id: nextTripId++,
+      user_id: user.id,
+      title,
+      slug: tripSlug(),
+      description: String(body?.description || ''),
+      is_public: body?.is_public !== false,
+      items: [],
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    tripLists.push(list);
+    return jsonResponse(clone(tripPayload(list)), 201);
+  }
+
+  if (path === '/api/trips/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(clone(tripLists.filter((l) => l.user_id === user.id).map(tripPayload)));
+  }
+
+  if (path.startsWith('/api/trips/shared/') && method === 'GET') {
+    const slug = path.slice('/api/trips/shared/'.length);
+    const list = tripLists.find((l) => l.slug === slug);
+    if (!list) return jsonResponse({ error: 'Trip not found' }, 404);
+    const viewer = bearerUser(init);
+    if (!list.is_public && viewer?.id !== list.user_id) {
+      return jsonResponse({ error: 'Trip not found' }, 404);
+    }
+    return jsonResponse(clone(tripPayload(list)));
+  }
+
+  if (path.startsWith('/api/trips/')) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const [idSeg, postsSeg, postIdSeg] = path.slice('/api/trips/'.length).split('/');
+    const list = tripLists.find((l) => l.id === Number(idSeg));
+    if (!list) return jsonResponse({ error: 'Trip not found' }, 404);
+    if (list.user_id !== user.id) {
+      return jsonResponse({ error: 'This trip belongs to another traveler.' }, 403);
+    }
+
+    if (postsSeg === 'posts' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body?.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be added to a trip.' }, 422);
+      }
+      if (!list.items.some((i) => i.post_id === post.id)) {
+        const nextOrder = list.items.reduce((max, i) => Math.max(max, i.sort_order), 0);
+        list.items.push({ id: nextTripItemId++, post_id: post.id, sort_order: nextOrder + 1 });
+        list.updated_at = nowISO();
+      }
+      return jsonResponse(clone(tripPayload(list)), 201);
+    }
+
+    if (postsSeg === 'posts' && postIdSeg && method === 'DELETE') {
+      list.items = list.items.filter((i) => i.post_id !== Number(postIdSeg));
+      list.updated_at = nowISO();
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'GET') {
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'PATCH') {
+      if (typeof body?.title === 'string' && body.title.trim().length >= 2) {
+        list.title = body.title.trim();
+      }
+      if ('description' in (body || {})) list.description = String(body.description || '');
+      if (typeof body?.is_public === 'boolean') list.is_public = body.is_public;
+      list.updated_at = nowISO();
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'DELETE') {
+      const idx = tripLists.indexOf(list);
+      tripLists.splice(idx, 1);
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ error: 'Not found' }, 404);
   }
 
   /* ---- admin panel behind role:admin (Phase 5) ----

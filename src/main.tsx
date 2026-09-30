@@ -11,6 +11,16 @@ if (import.meta.env?.VITE_USE_MOCK !== 'false') {
   installApi();
 }
 
+// Phase 6 — offline app shell. Registered in production builds only: dev
+// servers and tests should never be intercepted by a service worker.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* offline shell is progressive enhancement — the app works without it */
+    });
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

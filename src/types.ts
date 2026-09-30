@@ -394,3 +394,23 @@ export interface Geography {
   districts: GeoDistrict[];
   communes: GeoCommune[];
 }
+
+/* Phase 6 — Trip Planner: shareable lists of published posts. */
+export interface TripItem {
+  id: number;
+  sort_order: number;
+  post: Post;
+}
+
+export interface Trip {
+  id: number;
+  title: string;
+  slug: string;
+  description: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+  items_count: number;
+  owner?: AuthUser | null;
+  items?: TripItem[];
+}

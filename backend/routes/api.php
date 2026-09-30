@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\V1\PartnerPlacementController;
 use App\Http\Controllers\Api\V1\PlaceController;
 use App\Http\Controllers\Api\V1\PostController;
 use App\Http\Controllers\Api\V1\RankingController;
+use App\Http\Controllers\Api\V1\TrendingController;
+use App\Http\Controllers\Api\V1\TripController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\ViewController;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +50,11 @@ Route::prefix('v1')->group(function () {
 
     // Phase 5 — Hidden Gem of the Week (editorial pick, never ranking).
     Route::get('hidden-gem/current', [HiddenGemController::class, 'current']);
+
+    // Phase 6 — Trending Now (recency-weighted, read-only; never writes
+    // ranking state) and shareable trip lists.
+    Route::get('trending', [TrendingController::class, 'index']);
+    Route::get('trips/shared/{slug}', [TripController::class, 'show']);
 
     // Auth (heavily rate limited) -----------------------------------------
     Route::middleware('throttle:auth')->group(function () {
@@ -91,6 +98,14 @@ Route::prefix('v1')->group(function () {
         // Phase 4 — lead analytics (owner/admin only; guests can still log
         // lead events via the public route below).
         Route::get('businesses/{business}/leads/summary', [LeadController::class, 'summary']);
+
+        // Phase 6 — Trip Planner (owner CRUD; public read via trips/shared).
+        Route::get('trips/mine', [TripController::class, 'mine']);
+        Route::post('trips', [TripController::class, 'store']);
+        Route::patch('trips/{trip}', [TripController::class, 'update']);
+        Route::delete('trips/{trip}', [TripController::class, 'destroy']);
+        Route::post('trips/{trip}/posts', [TripController::class, 'addPost']);
+        Route::delete('trips/{trip}/posts/{post}', [TripController::class, 'removePost']);
 
         // Monitoring hooks for the scaling plan (queue depth, DB
         // connections, Redis liveness). Admin-only, never public.
