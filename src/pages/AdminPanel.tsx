@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Check, X, Megaphone, Gem, ScrollText, Inbox } from 'lucide-react';
+import { ShieldCheck, Check, X, Megaphone, Gem, ScrollText, Inbox, CopyX } from 'lucide-react';
 import { apiFetch } from '../lib/http';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -8,7 +8,13 @@ import { LoadingState } from '../components/States';
 import type { Business, Post } from '../types';
 import '../styles/admin.css';
 
-type Tab = 'posts' | 'businesses' | 'placements' | 'gem' | 'audit';
+type Tab = 'posts' | 'businesses' | 'placements' | 'gem' | 'duplicates' | 'audit';
+
+interface DuplicatePair {
+  a: { id: number; name: string; commune_id: number | null };
+  b: { id: number; name: string; commune_id: number | null };
+  reason: string;
+}
 
 interface Placement {
   id: number;
@@ -39,6 +45,7 @@ export default function AdminPanel() {
   const [pendingBusinesses, setPendingBusinesses] = useState<Business[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicatePair[]>([]);
   const [gemPostId, setGemPostId] = useState('');
   const [gemNote, setGemNote] = useState('');
   const [notice, setNotice] = useState('');
@@ -50,16 +57,18 @@ export default function AdminPanel() {
     if (!isAdmin) return;
     setLoading(true);
     try {
-      const [postsRes, businessesRes, placementsRes, auditRes] = await Promise.all([
+      const [postsRes, businessesRes, placementsRes, auditRes, duplicatesRes] = await Promise.all([
         apiFetch('/admin/posts/pending'),
         apiFetch('/admin/businesses/pending'),
         apiFetch('/admin/placements'),
         apiFetch('/admin/audit-logs'),
+        apiFetch('/admin/places/duplicates'),
       ]);
       if (postsRes.ok) setPendingPosts(await postsRes.json());
       if (businessesRes.ok) setPendingBusinesses(await businessesRes.json());
       if (placementsRes.ok) setPlacements(await placementsRes.json());
       if (auditRes.ok) setAudit(await auditRes.json());
+      if (duplicatesRes.ok) setDuplicates(await duplicatesRes.json());
     } finally {
       setLoading(false);
     }
@@ -110,11 +119,19 @@ export default function AdminPanel() {
     }
   };
 
+  const mergePair = (canonicalId: number, duplicateId: number) =>
+    void act(
+      '/admin/places/merge',
+      { canonical_id: canonicalId, duplicate_id: duplicateId },
+      t('admin.mergedNotice'),
+    );
+
   const tabs: Array<{ id: Tab; label: string; icon: typeof Inbox }> = [
     { id: 'posts', label: `${t('admin.pendingPosts')} (${pendingPosts.length})`, icon: Inbox },
     { id: 'businesses', label: `${t('admin.pendingBusinesses')} (${pendingBusinesses.length})`, icon: ShieldCheck },
     { id: 'placements', label: t('admin.placements'), icon: Megaphone },
     { id: 'gem', label: t('admin.hiddenGem'), icon: Gem },
+    { id: 'duplicates', label: `${t('admin.duplicates')} (${duplicates.length})`, icon: CopyX },
     { id: 'audit', label: t('admin.auditLog'), icon: ScrollText },
   ];
 
@@ -297,6 +314,31 @@ export default function AdminPanel() {
               >
                 <Gem size={15} /> {t('admin.pickGem')}
               </button>
+            </section>
+          )}
+
+          {tab === 'duplicates' && (
+            <section className="admin-queue">
+              <p className="admin-hint">{t('admin.duplicatesHint')}</p>
+              {duplicates.length === 0 && <p className="admin-empty">{t('admin.duplicatesEmpty')}</p>}
+              {duplicates.map((pair) => (
+                <article key={`${pair.a.id}-${pair.b.id}`} className="admin-item admin-duplicate-row">
+                  <div className="admin-duplicate-names">
+                    <strong>{pair.a.name}</strong>
+                    <span>↔</span>
+                    <strong>{pair.b.name}</strong>
+                    <small>{t(`admin.duplicateReason.${pair.reason === 'same name' ? 'sameName' : 'nearby'}`)}</small>
+                  </div>
+                  <div className="admin-duplicate-actions">
+                    <button type="button" className="confirm" onClick={() => mergePair(pair.a.id, pair.b.id)}>
+                      {t('admin.keepA')} “{pair.a.name}”
+                    </button>
+                    <button type="button" onClick={() => mergePair(pair.b.id, pair.a.id)}>
+                      {t('admin.keepA')} “{pair.b.name}”
+                    </button>
+                  </div>
+                </article>
+              ))}
             </section>
           )}
 

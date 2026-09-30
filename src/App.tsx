@@ -23,6 +23,8 @@ const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Trips = lazy(() => import('./pages/Trips'));
 const TripPublic = lazy(() => import('./pages/TripPublic'));
 const OfflineLibrary = lazy(() => import('./pages/OfflineLibrary'));
+const Collections = lazy(() => import('./pages/Collections'));
+const CollectionPublic = lazy(() => import('./pages/CollectionPublic'));
 
 export default function App() {
   return (
@@ -48,6 +50,8 @@ export default function App() {
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/trips" element={<Trips />} />
                 <Route path="/trip/:slug" element={<TripPublic />} />
+                <Route path="/collections" element={<Collections />} />
+                <Route path="/collection/:slug" element={<CollectionPublic />} />
                 <Route path="/offline" element={<OfflineLibrary />} />
                 <Route path="/business/register" element={<BusinessRegister />} />
                 <Route path="/business/dashboard" element={<BusinessDashboard />} />

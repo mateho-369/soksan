@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Business;
 use App\Models\PartnerPlacement;
+use App\Models\Place;
 use App\Models\Post;
+use App\Services\DuplicatePlaceService;
 use App\Services\HiddenGemService;
 use App\Services\ModerationService;
 use App\Services\PartnerPlacementService;
@@ -23,6 +25,7 @@ class AdminController extends Controller
         private readonly ModerationService $moderation,
         private readonly PartnerPlacementService $placements,
         private readonly HiddenGemService $hiddenGems,
+        private readonly DuplicatePlaceService $duplicates,
     ) {
     }
 
@@ -125,5 +128,25 @@ class AdminController extends Controller
         return response()->json(
             AuditLog::query()->with('user:id,name')->latest('id')->limit(200)->get()
         );
+    }
+
+    /* ── duplicate places (Phase 7) — merge ONLY after admin confirms ── */
+
+    public function duplicatePlaces(): JsonResponse
+    {
+        return response()->json($this->duplicates->candidates());
+    }
+
+    public function mergePlaces(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'canonical_place_id' => ['required', 'integer', 'exists:places,id'],
+            'duplicate_place_id' => ['required', 'integer', 'exists:places,id'],
+        ]);
+
+        $canonical = Place::query()->findOrFail($validated['canonical_place_id']);
+        $duplicate = Place::query()->findOrFail($validated['duplicate_place_id']);
+
+        return response()->json($this->duplicates->merge($canonical, $duplicate, $request->user()));
     }
 }

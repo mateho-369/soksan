@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\V1\BookmarkController;
 use App\Http\Controllers\Api\V1\BusinessBillingController;
 use App\Http\Controllers\Api\V1\BusinessController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
+use App\Http\Controllers\Api\V1\CollectionController;
 use App\Http\Controllers\Api\V1\CommentController;
+use App\Http\Controllers\Api\V1\ContributorController;
 use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\HiddenGemController;
 use App\Http\Controllers\Api\V1\LeadController;
@@ -55,6 +57,15 @@ Route::prefix('v1')->group(function () {
     // ranking state) and shareable trip lists.
     Route::get('trending', [TrendingController::class, 'index']);
     Route::get('trips/shared/{slug}', [TripController::class, 'show']);
+
+    // Phase 7 — public collections (browse + read); contributor summaries.
+    Route::get('collections', [CollectionController::class, 'index']);
+    // Slugs are 10-char random strings; the constraint keeps reserved words
+    // like collections/mine (auth group) from being shadowed.
+    Route::get('collections/{slug}', [CollectionController::class, 'show'])
+        ->where('slug', '[a-z0-9]{10}');
+    // Numeric-only so the auth route contributors/me cannot be shadowed.
+    Route::get('contributors/{user}', [ContributorController::class, 'show'])->whereNumber('user');
 
     // Auth (heavily rate limited) -----------------------------------------
     Route::middleware('throttle:auth')->group(function () {
@@ -107,6 +118,15 @@ Route::prefix('v1')->group(function () {
         Route::post('trips/{trip}/posts', [TripController::class, 'addPost']);
         Route::delete('trips/{trip}/posts/{post}', [TripController::class, 'removePost']);
 
+        // Phase 7 — contributor summary for the caller + collection CRUD.
+        Route::get('contributors/me', [ContributorController::class, 'me']);
+        Route::get('collections/mine', [CollectionController::class, 'mine']);
+        Route::post('collections', [CollectionController::class, 'store']);
+        Route::patch('collections/{collection}', [CollectionController::class, 'update']);
+        Route::delete('collections/{collection}', [CollectionController::class, 'destroy']);
+        Route::post('collections/{collection}/posts', [CollectionController::class, 'addPost']);
+        Route::delete('collections/{collection}/posts/{post}', [CollectionController::class, 'removePost']);
+
         // Monitoring hooks for the scaling plan (queue depth, DB
         // connections, Redis liveness). Admin-only, never public.
         Route::middleware('role:admin')->group(function () {
@@ -119,7 +139,6 @@ Route::prefix('v1')->group(function () {
             Route::get('posts/pending', [AdminController::class, 'pendingPosts']);
             Route::post('posts/{post}/approve', [AdminController::class, 'approvePost']);
             Route::post('posts/{post}/reject', [AdminController::class, 'rejectPost']);
-
             Route::get('businesses/pending', [AdminController::class, 'pendingBusinesses']);
             Route::post('businesses/{business}/approve', [AdminController::class, 'approveBusiness']);
             Route::post('businesses/{business}/reject', [AdminController::class, 'rejectBusiness']);
@@ -130,6 +149,11 @@ Route::prefix('v1')->group(function () {
 
             Route::post('hidden-gem', [AdminController::class, 'pickHiddenGem']);
             Route::get('audit-logs', [AdminController::class, 'auditLogs']);
+
+            // Phase 7 — duplicate-place candidates; merge ONLY via this
+            // admin-confirmed, audited endpoint.
+            Route::get('places/duplicates', [AdminController::class, 'duplicatePlaces']);
+            Route::post('places/merge', [AdminController::class, 'mergePlaces']);
         });
     });
 });

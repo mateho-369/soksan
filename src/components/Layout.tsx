@@ -15,6 +15,7 @@ import {
   Megaphone,
   Map,
   MapPinCheck,
+  FolderHeart,
   LogIn,
   LogOut,
   ShieldCheck,
@@ -66,6 +67,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: '/profile', label: t('navigation.profile'), icon: UserRound },
     // Phase 6 — Trip Planner (mobile-first: lives in the bottom nav).
     { to: '/trips', label: t('navigation.trips'), icon: Map },
+    // Phase 7 — public Collections.
+    { to: '/collections', label: t('navigation.collections'), icon: FolderHeart },
   ];
 
   // Phase 6 — offline banner: shown while the device has no connectivity.
@@ -99,6 +102,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             </MotionNavLink>
             <MotionNavLink to="/trips" {...pressable}>
               <Map /> <span>{t('navigation.trips')}</span>
+            </MotionNavLink>
+            <MotionNavLink to="/collections" {...pressable}>
+              <FolderHeart /> <span>{t('navigation.collections')}</span>
             </MotionNavLink>
           </nav>
           <form className="nav-search" onSubmit={submitSearch}>

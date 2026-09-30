@@ -542,5 +542,58 @@
       }
     ],
     "commune_id": 1010
+  },
+  {
+    "id": 101,
+    "profile_id": 3,
+    "category": "local-food",
+    "location_name": "Phsar Chas Noodle Corner",
+    "province": "Phnom Penh",
+    "media_url": "https://picsum.photos/seed/soksan-noodles-dupe/900/1200",
+    "media_type": "image",
+    "caption_en": "Same kuy teav stall at the old market — posting the exact spot again so friends can find it.",
+    "caption_kh": "តូបគុយទាវនៅផ្សារចាស់ដដែល — ប្រកាសទីតាំងម្ដងទៀត ដើម្បីឱ្យមិត្តភក្តិរកឃើញ។",
+    "hashtags": "#PhnomPenh #SokSanNetwork",
+    "like_count": 12,
+    "comment_count": 1,
+    "share_count": 0,
+    "view_count": 230,
+    "is_liked": false,
+    "is_saved": false,
+    "business_name": null,
+    "destination_id": null,
+    "created_at": "2026-09-28T09:30:00+00:00",
+    "author": {
+      "id": 3,
+      "name": "Dara Sok",
+      "name_kh": "ដារ៉ា សុខ",
+      "handle": "@dara.sok",
+      "avatar_url": "https://picsum.photos/seed/soksan-piseth/200/200",
+      "cover_url": "https://picsum.photos/seed/soksan-piseth-cover/900/300",
+      "verified": false,
+      "location": "Phnom Penh, Cambodia",
+      "bio_en": "Eating my way through every market in the city.",
+      "bio_kh": "ញ៉ាំអាហារគ្រប់ផ្សារក្នុងទីក្រុង។",
+      "expertise": "Street food · Markets",
+      "badges": [
+        "🍜 Food Finder"
+      ],
+      "followers": 4470,
+      "following": 812,
+      "posts_count": 103,
+      "is_following": false
+    },
+    "promotion": null,
+    "media": [
+      {
+        "id": 941,
+        "post_id": 101,
+        "media_url": "https://picsum.photos/seed/soksan-noodles-dupe/900/1200",
+        "media_type": "image",
+        "sort_order": 0,
+        "duration_seconds": null
+      }
+    ],
+    "commune_id": 1009
   }
 ]

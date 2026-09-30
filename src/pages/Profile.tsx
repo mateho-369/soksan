@@ -20,12 +20,15 @@ import {
   CircleCheck,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LoadingState, ErrorState } from '../components/States';
 import ContactActions from '../components/ContactActions';
+import ContributorCard from '../components/ContributorCard';
 import type { Profile as ProfileType, Service, Contact } from '../types';
 
 export default function Profile() {
   const { language, t } = useLanguage();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [contact, setContact] = useState<Contact | null>(null);
@@ -163,6 +166,9 @@ export default function Profile() {
               <span key={badge}>{badge}</span>
             ))}
           </div>
+          {/* Phase 7 — live, transparent contributor level for the signed-in
+              traveler (derived from their published posts; never stored). */}
+          {user && <ContributorCard />}
         </div>
       </section>
 

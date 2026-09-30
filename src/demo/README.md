@@ -68,6 +68,16 @@ Nothing outside those three files imports from `src/demo/`.
   worker (`public/sw.js`) that caches the app shell — media files come from
   CDN placeholders, so only the shell + explicitly saved posts are
   guaranteed offline.
+- Phase 7 community: contributor levels are derived LIVE in the seam exactly
+  as `ContributorService` does (`points = likes*1 + comments*3 + shares*2 +
+  views/50` over published posts; pending/rejected posts count for nothing)
+  with floors 0/50/200/600/1500 → Seedling → Ambassador, plus milestone
+  badges. Public collections (`/api/collections*`) are always public and
+  hold published posts only. Duplicate detection flags posts sharing a
+  normalized place name inside one commune (the seeded pair: post 4 and
+  post 101, "Phsar Chas Noodle Corner"); merging happens exclusively via
+  the admin-confirmed `/api/admin/places/merge` and writes an audit row —
+  the merged place becomes hidden (`status = merged`).
 
 ## Media sources (placeholders)
 

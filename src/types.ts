@@ -414,3 +414,24 @@ export interface Trip {
   owner?: AuthUser | null;
   items?: TripItem[];
 }
+
+/* Phase 7 — public Collections + contributor levels. */
+export interface Collection {
+  id: number;
+  title: string;
+  slug: string;
+  description: string;
+  posts_count: number;
+  created_at: string;
+  updated_at: string;
+  owner?: AuthUser | null;
+  items?: TripItem[];
+}
+
+export interface ContributorSummary {
+  quality_points: number;
+  level: { floor: number; key: string; label: string };
+  next_level: { floor: number; key: string; label: string } | null;
+  badges: string[];
+  formula: string;
+}

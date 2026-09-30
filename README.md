@@ -129,6 +129,12 @@ docker compose run --rm api php artisan test
 | POST     | `/api/v1/trips`                           | token  | create a trip list (auto slug) |
 | PATCH/DEL | `/api/v1/trips/{trip}`                   | owner  | rename / set privacy / delete a trip |
 | POST/DEL | `/api/v1/trips/{trip}/posts[/{post}]`     | owner  | add/remove stops — published posts only |
+| GET      | `/api/v1/collections` · `/api/v1/collections/{slug}` | public | browse/read community collections (published posts only inside) |
+| GET/POST/PATCH/DEL | `/api/v1/collections[/mine\|/{collection}]` | token/owner | collection CRUD; only owners mutate |
+| POST/DEL | `/api/v1/collections/{collection}/posts[/{post}]` | owner | collect/uncollect published posts |
+| GET      | `/api/v1/contributors/me` · `/api/v1/contributors/{user}` | token/public | live contributor level & badges — `points = likes*1 + comments*3 + shares*2 + views/50` over published posts (never stored, never touches ranking) |
+| GET      | `/api/v1/admin/places/duplicates`         | role:admin | candidate duplicate places (advisory only) |
+| POST     | `/api/v1/admin/places/merge`              | role:admin | merge a duplicate into its canonical place — ONLY via this admin-confirmed, audited endpoint |
 | GET      | `/api/v1/admin/posts/pending`             | role:admin | first-post queue (`posts.status = pending_review`) |
 | POST     | `/api/v1/admin/posts/{post}/approve\|reject` | role:admin | publish or reject a queued post (audited) |
 | GET      | `/api/v1/admin/businesses/pending`        | role:admin | business registrations awaiting review |

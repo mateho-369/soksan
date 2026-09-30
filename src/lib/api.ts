@@ -106,6 +106,125 @@ const trendScore = (post: Post, now: Date): number => {
   const engagement = 1 + post.like_count + 2 * post.comment_count + post.share_count + (post.view_count ?? 0) / 100;
   return engagement * Math.pow(0.5, ageDays / TRENDING_HALF_LIFE_DAYS);
 };
+
+/* ------------------ contributor levels & badges (Phase 7) -------------- */
+/** Mirrors backend ContributorService. Quality, not quantity — comments
+ * weigh most, and everything is derived live from PUBLISHED posts. */
+export interface ContributorLevel {
+  floor: number;
+  key: string;
+  label: string;
+}
+export const CONTRIBUTOR_LEVELS: ContributorLevel[] = [
+  { floor: 0, key: 'seedling', label: 'Seedling' },
+  { floor: 50, key: 'explorer', label: 'Explorer' },
+  { floor: 200, key: 'local_guide', label: 'Local Guide' },
+  { floor: 600, key: 'storyteller', label: 'Storyteller' },
+  { floor: 1500, key: 'ambassador', label: 'Ambassador' },
+];
+export const CONTRIBUTOR_FORMULA =
+  'points = likes*1 + comments*3 + shares*2 + views/50, over published posts';
+const contributorSummary = (userId: number) => {
+  // Same visibility rule as the feed: seeded legacy posts have no status
+  // field and count as published.
+  const published = posts.filter(
+    (p) => p.profile_id === userId && (!p.status || p.status === 'published'),
+  );
+  const points = published.reduce(
+    (sum, p) => sum + p.like_count + 3 * p.comment_count + 2 * p.share_count + (p.view_count ?? 0) / 50,
+    0,
+  );
+  let level = CONTRIBUTOR_LEVELS[0];
+  let next: (typeof CONTRIBUTOR_LEVELS)[number] | null = null;
+  for (const candidate of CONTRIBUTOR_LEVELS) {
+    if (points >= candidate.floor) level = candidate;
+  }
+  for (const candidate of CONTRIBUTOR_LEVELS) {
+    if (points < candidate.floor) {
+      next = candidate;
+      break;
+    }
+  }
+  const likesReceived = published.reduce((sum, p) => sum + p.like_count, 0);
+  const badges: string[] = [];
+  if (published.length >= 1) badges.push('first_story');
+  if (published.length >= 10) badges.push('prolific');
+  if (likesReceived >= 100) badges.push('beloved');
+  if (published.reduce((sum, p) => sum + p.share_count, 0) >= 50) badges.push('word_spreader');
+  return {
+    quality_points: Math.round(points * 10) / 10,
+    level: { floor: level.floor, key: level.key, label: level.label },
+    next_level: next ? { floor: next.floor, key: next.key, label: next.label } : null,
+    badges,
+    formula: CONTRIBUTOR_FORMULA,
+  };
+};
+
+/* ----------------------- collections (Phase 7) -------------------------- */
+/** Public community curation (always public, browsable). Published posts only. */
+interface CollectionRow {
+  id: number;
+  user_id: number;
+  title: string;
+  slug: string;
+  description: string;
+  post_ids: number[];
+  created_at: string;
+  updated_at: string;
+}
+const collections: CollectionRow[] = [];
+let nextCollectionId = 1;
+const collectionSlug = () =>
+  Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+const collectionPayload = (collection: CollectionRow) => {
+  const owner = mockUsers.find((u) => u.id === collection.user_id);
+  return {
+    id: collection.id,
+    title: collection.title,
+    slug: collection.slug,
+    description: collection.description,
+    posts_count: collection.post_ids.length,
+    created_at: collection.created_at,
+    updated_at: collection.updated_at,
+    owner: owner ? publicUser(owner) : null,
+  };
+};
+const collectionDetail = (collection: CollectionRow) => ({
+  ...collectionPayload(collection),
+  items: collection.post_ids
+    .map((id) => visiblePosts().find((p) => p.id === id))
+    .filter((p): p is Post => Boolean(p))
+    .map((post, index) => ({ id: post.id, sort_order: index + 1, post: clone(post) })),
+});
+
+/* ------------------ duplicate-place detection (Phase 7) ----------------- */
+/** Candidate = same commune AND (near-identical name). Merges happen ONLY
+ * through the admin-confirmed endpoint and are audited. */
+const normalizePlaceName = (name: string): string =>
+  name.toLowerCase().replace(/[^a-z0-9\u1780-\u17ff]+/g, ' ').replace(/\s+/g, ' ').trim();
+const duplicateCandidates = () => {
+  const published = visiblePosts();
+  const pairs: Array<{
+    a: { id: number; name: string; commune_id: number | null };
+    b: { id: number; name: string; commune_id: number | null };
+    reason: string;
+  }> = [];
+  for (let i = 0; i < published.length; i += 1) {
+    for (let j = i + 1; j < published.length; j += 1) {
+      const a = published[i];
+      const b = published[j];
+      if (!a.commune_id || a.commune_id !== b.commune_id) continue;
+      if (normalizePlaceName(a.location_name) === normalizePlaceName(b.location_name)) {
+        pairs.push({
+          a: { id: a.id, name: a.location_name, commune_id: a.commune_id },
+          b: { id: b.id, name: b.location_name, commune_id: b.commune_id },
+          reason: 'same name',
+        });
+      }
+    }
+  }
+  return pairs;
+};
 const destinations: Destination[] = clone(destinationsSeed) as unknown as Destination[];
 const itineraries: Itinerary[] = clone(itinerariesSeed) as unknown as Itinerary[];
 const profile = clone(profileSeed);
@@ -936,6 +1055,32 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     });
   }
 
+  /* ---- public collections (browse/read; Phase 7) ---- */
+  if (path === '/api/collections' && method === 'GET') {
+    return jsonResponse(
+      clone(
+        collections.map(collectionPayload).sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+      ),
+    );
+  }
+
+  if (path.startsWith('/api/collections/') && method === 'GET') {
+    const slug = path.slice('/api/collections/'.length);
+    // `mine` falls through to the authenticated collections routes below.
+    if (!slug.includes('/') && slug !== 'mine') {
+      const list = collections.find((c) => c.slug === slug);
+      if (!list) return jsonResponse({ error: 'Collection not found' }, 404);
+      return jsonResponse(clone(collectionDetail(list)));
+    }
+  }
+
+  /* ---- contributor summary by numeric user id (public; Phase 7).
+   * `contributors/me` falls through to the authenticated section. ---- */
+  if (path.startsWith('/api/contributors/') && method === 'GET') {
+    const idSeg = path.slice('/api/contributors/'.length);
+    if (/^\d+$/.test(idSeg)) return jsonResponse(contributorSummary(Number(idSeg)));
+  }
+
   /* ---- Trip Planner: shareable lists of published posts (Phase 6) ---- */
   const tripPayload = (list: TripListRow) => ({
     id: list.id,
@@ -1162,6 +1307,111 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     if (path === '/api/admin/audit-logs' && method === 'GET') {
       return jsonResponse(clone(auditLogs.slice(0, 200)));
     }
+
+    /* Phase 7 — duplicate-place candidates; merge ONLY via this endpoint. */
+    if (path === '/api/admin/places/duplicates' && method === 'GET') {
+      return jsonResponse(clone(duplicateCandidates()));
+    }
+    if (path === '/api/admin/places/merge' && method === 'POST') {
+      const canonical = posts.find((p) => p.id === Number(body?.canonical_id));
+      const duplicate = posts.find((p) => p.id === Number(body?.duplicate_id));
+      if (!canonical || !duplicate) return jsonResponse({ error: 'Post not found' }, 404);
+      if (canonical.id === duplicate.id) {
+        return jsonResponse({ error: 'A place cannot be merged into itself.' }, 422);
+      }
+      if (duplicate.status === 'merged') {
+        return jsonResponse({ error: 'This place is already merged.' }, 422);
+      }
+      // The duplicate disappears from every public surface; the canonical
+      // place keeps the full history. Mirrors backend Place.merged_into_id.
+      duplicate.status = 'merged';
+      recordAudit(
+        admin,
+        'place.merge',
+        `${duplicate.location_name} → ${canonical.location_name}`,
+      );
+      return jsonResponse(clone(canonical));
+    }
+  }
+
+  /* ---- collections + contributor self-summary (auth; Phase 7) ---- */
+  if (path === '/api/contributors/me' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(contributorSummary(user.id));
+  }
+
+  if (path === '/api/collections/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(
+      clone(collections.filter((c) => c.user_id === user.id).map(collectionPayload)),
+    );
+  }
+
+  if (path === '/api/collections' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const title = String(body?.title || '').trim();
+    if (title.length < 2) return jsonResponse({ error: 'Collection title is required' }, 422);
+    const collection: CollectionRow = {
+      id: nextCollectionId++,
+      user_id: user.id,
+      title,
+      slug: collectionSlug(),
+      description: String(body?.description || ''),
+      post_ids: [],
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    collections.push(collection);
+    return jsonResponse(clone(collectionPayload(collection)), 201);
+  }
+
+  if (path.startsWith('/api/collections/')) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const [idSeg, postsSeg, postIdSeg] = path.slice('/api/collections/'.length).split('/');
+    const collection = collections.find((c) => c.id === Number(idSeg));
+    if (!collection) return jsonResponse({ error: 'Collection not found' }, 404);
+    if (collection.user_id !== user.id) {
+      return jsonResponse({ error: 'This collection belongs to another traveler.' }, 403);
+    }
+
+    if (postsSeg === 'posts' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body?.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be collected.' }, 422);
+      }
+      if (!collection.post_ids.includes(post.id)) {
+        collection.post_ids.push(post.id);
+        collection.updated_at = nowISO();
+      }
+      return jsonResponse(clone(collectionPayload(collection)), 201);
+    }
+
+    if (postsSeg === 'posts' && postIdSeg && method === 'DELETE') {
+      collection.post_ids = collection.post_ids.filter((id) => id !== Number(postIdSeg));
+      collection.updated_at = nowISO();
+      return jsonResponse(clone(collectionPayload(collection)));
+    }
+
+    if (!postsSeg && method === 'PATCH') {
+      if (typeof body?.title === 'string' && body.title.trim().length >= 2) {
+        collection.title = body.title.trim();
+      }
+      if ('description' in (body || {})) collection.description = String(body.description || '');
+      collection.updated_at = nowISO();
+      return jsonResponse(clone(collectionPayload(collection)));
+    }
+
+    if (!postsSeg && method === 'DELETE') {
+      collections.splice(collections.indexOf(collection), 1);
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ error: 'Not found' }, 404);
   }
 
   /* ---- conversations / messages ---- */
