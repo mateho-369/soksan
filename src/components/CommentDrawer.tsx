@@ -1,6 +1,9 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type TouchEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, MessageCircle, Smile, Send } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LoadingState } from './States';
 import type { Post, Comment, CommentAsset } from '../types';
 
@@ -13,6 +16,8 @@ interface CommentDrawerProps {
 
 export default function CommentDrawer({ post, open, onClose, onComment }: CommentDrawerProps) {
   const { t } = useLanguage();
+  const { requireAuth } = useAuth();
+  const navigate = useNavigate();
   const [comments, setComments] = useState<Comment[]>([]);
   const [assets, setAssets] = useState<CommentAsset[]>([]);
   const [draft, setDraft] = useState('');
@@ -26,7 +31,7 @@ export default function CommentDrawer({ post, open, onClose, onComment }: Commen
     if (!post) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/comments?post_id=${post.id}`);
+      const res = await apiFetch(`/comments?post_id=${post.id}`);
       if (!res.ok) throw new Error('Could not load comments');
       const data = await res.json();
       setComments(data.comments);
@@ -58,16 +63,17 @@ export default function CommentDrawer({ post, open, onClose, onComment }: Commen
   const submit = async (event?: FormEvent, asset?: CommentAsset) => {
     event?.preventDefault();
     if (!post || (!draft.trim() && !asset)) return;
+    if (!requireAuth(navigate)) return;
     setSending(true);
     setError('');
     try {
-      const res = await fetch('/api/comments', {
+      const res = await apiFetch('/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id, body: draft, asset_id: asset?.id || null }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Comment failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Comment failed');
       setDraft('');
       setPicker(null);
       await loadComments();
@@ -80,6 +86,7 @@ export default function CommentDrawer({ post, open, onClose, onComment }: Commen
   };
 
   const toggleLike = async (id: number) => {
+    if (!requireAuth(navigate)) return;
     setComments((list) =>
       list.map((comment) =>
         comment.id === id
@@ -91,7 +98,7 @@ export default function CommentDrawer({ post, open, onClose, onComment }: Commen
           : comment,
       ),
     );
-    await fetch('/api/comments', {
+    await apiFetch('/comments', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),

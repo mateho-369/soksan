@@ -1,0 +1,48 @@
+{
+  "campaigns": [
+    {
+      "id": 1, "post_id": 6, "merchant_name": "Bokor Cloud Station", "province": "Kampot",
+      "target_type": "tourists_to_region", "budget": 25, "expected_views": 25000, "service_fee": 1.25,
+      "status": "active", "payment_ref": "BST-10020001",
+      "started_at": "2026-09-27T12:00:00+00:00", "created_at": "2026-09-27T12:00:00+00:00",
+      "post": {
+        "id": 6, "profile_id": 11, "category": "hidden-gems", "location_name": "Bokor Cloud Station", "province": "Kampot",
+        "media_url": "https://picsum.photos/seed/soksan-bokor/720/1280", "media_type": "video",
+        "caption_en": "Drive up before sunrise and stand above the clouds. Bring a jacket — the wind is real.",
+        "caption_kh": "បើកឡើងមុនថ្ងៃរះ ហើយឈរលើពពក។ យកអាវរងាទៅ — ខ្យល់ខ្លាំងមែន។",
+        "hashtags": "#Bokor #SokSanNetwork", "like_count": 2057, "comment_count": 5, "share_count": 143,
+        "view_count": 88100, "is_liked": false, "is_saved": false, "business_name": null, "destination_id": null,
+        "created_at": "2026-09-27T11:30:00+00:00",
+        "author": { "id": 11, "name": "Vibol Rin", "name_kh": "រិន វិបុល", "handle": "@vibol.drinks", "avatar_url": "https://picsum.photos/seed/soksan-vibol/200/200", "cover_url": "", "verified": false, "location": "Kampot, Cambodia", "bio_en": "", "bio_kh": "", "expertise": "", "badges": [], "followers": 2140, "following": 502, "posts_count": 61, "is_following": false },
+        "promotion": null,
+        "media": [{ "id": 61, "post_id": 6, "media_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4", "media_type": "video", "sort_order": 0, "duration_seconds": 15 }]
+      }
+    },
+    {
+      "id": 2, "post_id": 3, "merchant_name": "Srae Thom Homestay", "province": "Kampong Thom",
+      "target_type": "eco_travelers", "budget": 15, "expected_views": 15000, "service_fee": 0.75,
+      "status": "active", "payment_ref": "BST-10020002",
+      "started_at": "2026-09-26T08:30:00+00:00", "created_at": "2026-09-26T08:30:00+00:00",
+      "post": {
+        "id": 3, "profile_id": 12, "category": "eco-resorts", "location_name": "Srae Thom Floating Stay", "province": "Kampong Thom",
+        "media_url": "https://picsum.photos/seed/soksan-sraethom/900/1200", "media_type": "image",
+        "caption_en": "Sleep on the lake in a house that moves with the water. Dinner arrives by paddle boat.",
+        "caption_kh": "គេងលើផ្ទះអណ្ដែតដែលរំកិលតាមទឹក។ អាហារពេលល្ងាចមកដល់ដោយទូកចែវ។",
+        "hashtags": "#KampongThom #SokSanNetwork", "like_count": 498, "comment_count": 1, "share_count": 19,
+        "view_count": 7300, "is_liked": false, "is_saved": false, "business_name": "Srae Thom Homestay", "destination_id": 3,
+        "created_at": "2026-09-25T09:40:00+00:00",
+        "author": { "id": 12, "name": "Sreyneang Keo", "name_kh": "កែវ ស្រីនាង", "handle": "@sreyneang.stays", "avatar_url": "https://picsum.photos/seed/soksan-sreyneang/200/200", "cover_url": "", "verified": true, "location": "Kampong Thom, Cambodia", "bio_en": "", "bio_kh": "", "expertise": "", "badges": [], "followers": 8930, "following": 190, "posts_count": 87, "is_following": false },
+        "promotion": null,
+        "media": [{ "id": 31, "post_id": 3, "media_url": "https://picsum.photos/seed/soksan-sraethom/900/1200", "media_type": "image", "sort_order": 0, "duration_seconds": null }]
+      }
+    }
+  ],
+  "provinces": [
+    { "id": 1, "name": "Preah Sihanouk", "name_kh": "ព្រះសីហនុ", "icon": "🌊", "explorers": 14100 },
+    { "id": 2, "name": "Kampot", "name_kh": "កំពត", "icon": "🌿", "explorers": 11920 },
+    { "id": 3, "name": "Mondulkiri", "name_kh": "មណ្ឌលគិរី", "icon": "🌄", "explorers": 12480 },
+    { "id": 4, "name": "Koh Kong", "name_kh": "កោះកុង", "icon": "🌊", "explorers": 9360 },
+    { "id": 5, "name": "Siem Reap", "name_kh": "សៀមរាប", "icon": "🛕", "explorers": 16320 }
+  ],
+  "posts": []
+}

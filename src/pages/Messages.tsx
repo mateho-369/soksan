@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -42,7 +43,7 @@ export default function Messages() {
 
   const loadConversations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/conversations?filter=${filter}`);
+      const res = await apiFetch(`/conversations?filter=${filter}`);
       if (!res.ok) throw new Error('Could not load conversations');
       const data: Conversation[] = await res.json();
       setConversations(data);
@@ -59,7 +60,7 @@ export default function Messages() {
       if (!activeId) return;
       if (!silent) setLoadingMessages(true);
       try {
-        const res = await fetch(`/api/messages?conversation_id=${activeId}`);
+        const res = await apiFetch(`/messages?conversation_id=${activeId}`);
         if (!res.ok) throw new Error('Could not load messages');
         setMessages(await res.json());
       } catch (err) {
@@ -83,7 +84,7 @@ export default function Messages() {
 
   useEffect(() => {
     if (pickerOpen && destinations.length === 0) {
-      Promise.all([fetch('/api/destinations'), fetch('/api/itineraries')])
+      Promise.all([apiFetch('/destinations'), apiFetch('/itineraries')])
         .then(async ([destinationsRes, itinerariesRes]) => {
           if (!destinationsRes.ok || !itinerariesRes.ok) throw new Error();
           setDestinations(await destinationsRes.json());
@@ -116,7 +117,7 @@ export default function Messages() {
     setDraft('');
     setPickerOpen(false);
     try {
-      const res = await fetch('/api/messages', {
+      const res = await apiFetch('/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

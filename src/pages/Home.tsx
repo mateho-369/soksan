@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -11,21 +12,29 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
-  Heart,
   MessageCircle,
   Send,
   Zap,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LoadingState, ErrorState } from '../components/States';
+import { ErrorState } from '../components/States';
 import PostComposer from '../components/PostComposer';
 import PostViewer from '../components/PostViewer';
 import BoostModal from '../components/BoostModal';
 import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
+import { EmptyState } from '../components/States';
+import { useAuth } from '../contexts/AuthContext';
+import LikeButton from '../ui/LikeButton';
+import AnimatedNumber from '../ui/AnimatedNumber';
+import { FeedSkeleton } from '../ui/Skeleton';
+import { GemToast } from '../ui/GemMoment';
+import { useGemMoment } from '../ui/useGemMoment';
+import { pressable, springs } from '../ui/motion';
 import type { Post, Category, Province, Ad } from '../types';
 
 export default function Home() {
   const { language, t } = useLanguage();
+  const { user, requireAuth } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -37,7 +46,6 @@ export default function Home() {
   const [mediaIndexes, setMediaIndexes] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [busyPost, setBusyPost] = useState<number | null>(null);
   const [boostPost, setBoostPost] = useState<Post | null>(null);
   const [viewerPostId, setViewerPostId] = useState<number | null>(null);
   const [viewerComments, setViewerComments] = useState(false);
@@ -53,10 +61,10 @@ export default function Home() {
         if (query) params.set('search', query);
         if (activeCategory) params.set('category', activeCategory);
         const [postsRes, categoriesRes, adsRes, rankingsRes] = await Promise.all([
-          fetch(`/api/posts?${params}`),
-          fetch('/api/categories'),
-          fetch('/api/ads'),
-          fetch('/api/rankings'),
+          apiFetch(`/posts?${params}`),
+          apiFetch('/categories'),
+          apiFetch('/ads'),
+          apiFetch('/rankings'),
         ]);
         if (!postsRes.ok || !categoriesRes.ok || !adsRes.ok || !rankingsRes.ok) {
           throw new Error('We could not load the travel stories.');
@@ -84,9 +92,21 @@ export default function Home() {
     fetchFeed();
   }, [fetchFeed]);
 
-  const interact = async (postId: number, action: 'like' | 'comment' | 'share') => {
+  // Light gamification: celebrate once when the signed-in user's own post
+  // crosses the hidden-gem threshold (localStorage prevents repeats).
+  const { moment: gemMoment, celebrateIfNew, dismiss: dismissGem } = useGemMoment();
+  useEffect(() => {
+    if (!user) return;
+    posts.forEach((post) => {
+      if (post.author.id === user.id) {
+        celebrateIfNew(post.id, post.location_name, post.like_count);
+      }
+    });
+  }, [posts, user, celebrateIfNew]);
+
+  const interact = async (postId: number, action: 'like' | 'comment' | 'share' | 'save') => {
+    if (!requireAuth(navigate)) return;
     const snapshot = posts;
-    setBusyPost(postId);
     setPosts((list) =>
       list.map((post) =>
         post.id !== postId
@@ -94,6 +114,7 @@ export default function Home() {
           : {
               ...post,
               is_liked: action === 'like' ? !post.is_liked : post.is_liked,
+              is_saved: action === 'save' ? !post.is_saved : post.is_saved,
               like_count:
                 action === 'like' ? Math.max(0, post.like_count + (post.is_liked ? -1 : 1)) : post.like_count,
               comment_count: action === 'comment' ? post.comment_count + 1 : post.comment_count,
@@ -111,7 +132,7 @@ export default function Home() {
           await navigator.clipboard?.writeText(window.location.href);
         }
       }
-      const res = await fetch('/api/posts', {
+      const res = await apiFetch('/posts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: postId, action }),
@@ -122,11 +143,12 @@ export default function Home() {
       setPosts(snapshot);
       setError(err instanceof Error ? err.message : 'Interaction failed');
     } finally {
-      setBusyPost(null);
+      /* optimistic update already applied */
     }
   };
 
   const toggleFollow = async (profileId: number) => {
+    if (!requireAuth(navigate)) return;
     setPosts((list) =>
       list.map((post) =>
         post.author.id === profileId
@@ -135,7 +157,7 @@ export default function Home() {
       ),
     );
     try {
-      const res = await fetch('/api/follows', {
+      const res = await apiFetch('/follows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profile_id: profileId }),
@@ -219,24 +241,34 @@ export default function Home() {
           <PostComposer categories={categories} provinces={provinces} onPosted={() => fetchFeed(false)} />
 
           <div className="category-scroller social-category-scroller">
-            <button className={activeCategory ? '' : 'active'} onClick={() => setActiveCategory('')}>
+            <motion.button
+              {...pressable}
+              className={activeCategory ? '' : 'active'}
+              onClick={() => setActiveCategory('')}
+            >
               ✦ {t('common.allPlaces')}
-            </button>
+            </motion.button>
             {categories.map((category) => (
-              <button
+              <motion.button
+                {...pressable}
                 key={category.id}
                 className={activeCategory === category.slug ? 'active' : ''}
                 onClick={() => setActiveCategory(category.slug)}
               >
                 {category.emoji} {language === 'kh' ? category.label_kh : category.label_en}
-              </button>
+              </motion.button>
             ))}
           </div>
 
           {loading ? (
-            <LoadingState />
+            <FeedSkeleton count={2} />
           ) : error ? (
             <ErrorState message={error} onRetry={() => fetchFeed()} />
+          ) : posts.length === 0 ? (
+            <EmptyState
+              title={query ? t('feed.emptySearch') : t('feed.empty')}
+              body={query ? t('feed.emptySearchHelp') : t('feed.emptyHelp')}
+            />
           ) : (
             <section className="facebook-feed">
               {posts.map((post, index) => {
@@ -262,9 +294,9 @@ export default function Home() {
                   <Fragment key={post.id}>
                     <motion.article
                       className={`post-card facebook-post ${post.promotion ? 'promoted-post' : ''}`}
-                      initial={{ opacity: 0, y: 14 }}
+                      initial={{ opacity: 0, y: 18 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: Math.min(index * 0.05, 0.25) }}
+                      transition={{ ...springs.gentle, delay: Math.min(index * 0.06, 0.3) }}
                     >
                       <header className="post-author">
                         <img src={post.author.avatar_url} alt="" />
@@ -284,8 +316,13 @@ export default function Home() {
                             {post.location_name}, {post.province} · {new Date(post.created_at).toLocaleDateString()}
                           </button>
                         </div>
-                        <button className="save-button">
-                          <Bookmark />
+                        <button
+                          className={`save-button ${post.is_saved ? 'saved' : ''}`}
+                          aria-pressed={Boolean(post.is_saved)}
+                          aria-label={t('social.save')}
+                          onClick={() => interact(post.id, 'save')}
+                        >
+                          <Bookmark fill={post.is_saved ? 'currentColor' : 'none'} />
                         </button>
                       </header>
 
@@ -353,7 +390,13 @@ export default function Home() {
                       )}
 
                       <div className="facebook-counts">
-                        <span>{post.like_count > 0 && <>💚 {post.like_count.toLocaleString()}</>}</span>
+                        <span>
+                          {post.like_count > 0 && (
+                            <>
+                              💚 <AnimatedNumber value={post.like_count} />
+                            </>
+                          )}
+                        </span>
                         <button onClick={() => openViewer(post.id, true)}>
                           {post.comment_count} {t('social.comments')}
                         </button>
@@ -361,13 +404,13 @@ export default function Home() {
                       </div>
 
                       <div className="facebook-actions">
-                        <button
-                          disabled={busyPost === post.id}
-                          className={post.is_liked ? 'liked' : ''}
-                          onClick={() => interact(post.id, 'like')}
-                        >
-                          <Heart fill={post.is_liked ? 'currentColor' : 'none'} /> {t('social.like')}
-                        </button>
+                        <LikeButton
+                          liked={Boolean(post.is_liked)}
+                          onToggle={() => interact(post.id, 'like')}
+                          variant="pill"
+                          size="md"
+                          label={t('social.like')}
+                        />
                         <button onClick={() => openViewer(post.id, true)}>
                           <MessageCircle /> {t('social.comment')}
                         </button>
@@ -423,6 +466,7 @@ export default function Home() {
         onComment={() => fetchFeed(false)}
       />
       <BoostModal post={boostPost} onClose={() => setBoostPost(null)} onComplete={() => fetchFeed(false)} />
+      <GemToast moment={gemMoment} onDismiss={dismissGem} />
     </div>
   );
 }

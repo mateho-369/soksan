@@ -24,3 +24,13 @@ dist-ssr
 *.sw?
 .vite-source-tags.js
 .vercel
+
+# Backend
+backend/vendor/
+backend/.env
+backend/storage/app/*
+!backend/storage/app/.gitignore
+backend/storage/app/public/*
+!backend/storage/app/public/.gitignore
+backend/storage/app/private/*
+!backend/storage/app/private/.gitignore

@@ -1,8 +1,10 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, Star, ChartColumn, MapPin, BadgeCheck, CalendarCheck, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LoadingState, ErrorState } from '../components/States';
+import { springs } from '../ui/motion';
 import type { RankFilter, RankProvince } from '../types';
 
 export default function Rankings() {
@@ -17,7 +19,7 @@ export default function Rankings() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/rankings${activeFilter ? `?filter=${activeFilter}` : ''}`);
+      const res = await apiFetch(`/rankings${activeFilter ? `?filter=${activeFilter}` : ''}`);
       if (!res.ok) throw new Error('Province rankings are resting for a moment.');
       const data = await res.json();
       setFilters(data.filters);
@@ -73,9 +75,9 @@ export default function Rankings() {
             <motion.article
               key={province.id}
               className="province-rank-card"
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.06 }}
+              transition={{ ...springs.gentle, delay: Math.min(index * 0.06, 0.3) }}
             >
               <div className="province-rank-summary">
                 <div className="rank-number">{String(province.rank).padStart(2, '0')}</div>

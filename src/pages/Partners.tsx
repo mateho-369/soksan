@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -53,7 +54,7 @@ export default function Partners() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/partners${typeFilter ? `?type=${typeFilter}` : ''}`);
+      const res = await apiFetch(`/partners${typeFilter ? `?type=${typeFilter}` : ''}`);
       if (!res.ok) throw new Error('Could not load collaborators');
       const data = await res.json();
       setPartners(data.partners);
@@ -85,7 +86,7 @@ export default function Partners() {
     setSubmitting(true);
     setError('');
     try {
-      const res = await fetch('/api/partners', {
+      const res = await apiFetch('/partners', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, monthly_fee: selectedCategory.monthly_fee }),

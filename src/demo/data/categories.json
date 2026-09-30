@@ -1,0 +1,13 @@
+[
+  { "id": 1, "label_en": "Hidden Gems", "label_kh": "កន្លែងលាក់ខ្លួន", "emoji": "💎", "slug": "hidden-gems" },
+  { "id": 2, "label_en": "Aesthetic Cafes", "label_kh": "ហាងកាហ្វេស្អាតៗ", "emoji": "☕", "slug": "aesthetic-cafes" },
+  { "id": 3, "label_en": "Eco-Resorts", "label_kh": "រមណីយដ្ឋានធម្មជាតិ", "emoji": "🌿", "slug": "eco-resorts" },
+  { "id": 4, "label_en": "Trip Stories", "label_kh": "រឿងដំណើរ", "emoji": "📖", "slug": "trip-stories" },
+  { "id": 5, "label_en": "Events & Festivals", "label_kh": "ព្រឹត្តិការណ៍ និងពិធីបុណ្យ", "emoji": "🎉", "slug": "events" },
+  { "id": 6, "label_en": "Local Food", "label_kh": "ម្ហូបក្នុងស្រុក", "emoji": "🍜", "slug": "local-food" },
+  { "id": 7, "label_en": "Karaoke & Nightlife", "label_kh": "ខារ៉ាអូខេ និងពេលយប់", "emoji": "🎤", "slug": "karaoke-nightlife" },
+  { "id": 8, "label_en": "Beaches & Islands", "label_kh": "ឆ្នេរ និងកោះ", "emoji": "🏝️", "slug": "beaches-islands" },
+  { "id": 9, "label_en": "Itineraries", "label_kh": "ផែនការដំណើរ", "emoji": "🧭", "slug": "itineraries" },
+  { "id": 10, "label_en": "Family Fun", "label_kh": "កម្សាន្តគ្រួសារ", "emoji": "🎠", "slug": "family-fun" },
+  { "id": 11, "label_en": "City Life", "label_kh": "ជីវិតទីក្រុង", "emoji": "🌆", "slug": "city-life" }
+]

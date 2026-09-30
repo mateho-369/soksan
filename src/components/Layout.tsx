@@ -1,5 +1,7 @@
+import { apiFetch } from '../lib/http';
 import { useEffect, useState, type ReactNode, type FormEvent } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   House,
   Compass,
@@ -12,14 +14,23 @@ import {
   Bell,
   Megaphone,
   MapPinCheck,
+  LogIn,
+  LogOut,
+  UserPlus,
   X,
 } from 'lucide-react';
 import Brand from './Brand';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import StreakChip from '../ui/StreakChip';
+import { pressable, springs } from '../ui/motion';
 import type { Ad } from '../types';
+
+const MotionNavLink = motion.create(NavLink);
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { t, setLanguage, language } = useLanguage();
+  const { user, logout } = useAuth();
   const [query, setQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [bannerAd, setBannerAd] = useState<Ad | null>(null);
@@ -28,7 +39,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/ads?placement=top_banner')
+    apiFetch('/ads?placement=top_banner')
       .then((res) => (res.ok ? res.json() : []))
       .then((list: Ad[]) => setBannerAd(list[0] || null))
       .catch(() => {});
@@ -59,13 +70,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           </NavLink>
           <nav className="desktop-links">
             {links.slice(0, 5).map(({ to, label }) => (
-              <NavLink key={to} to={to} end={to === '/'}>
+              <MotionNavLink key={to} to={to} end={to === '/'} {...pressable}>
                 {label}
-              </NavLink>
+              </MotionNavLink>
             ))}
-            <NavLink to="/rankings">
+            <MotionNavLink to="/rankings" {...pressable}>
               <Trophy /> <span>{t('navigation.rankings')}</span>
-            </NavLink>
+            </MotionNavLink>
           </nav>
           <form className="nav-search" onSubmit={submitSearch}>
             <Search size={18} />
@@ -80,6 +91,27 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Megaphone />
               <span>{t('navigation.merchant')}</span>
             </NavLink>
+            {user ? (
+              <div className="auth-chip">
+                <StreakChip />
+                <img src={user.avatar_url} alt="" />
+                <span className="auth-chip-name">{language === 'kh' && user.name_kh ? user.name_kh : user.name}</span>
+                <button className="icon-button" onClick={() => logout()} aria-label={t('auth.logout')} title={t('auth.logout')}>
+                  <LogOut size={17} />
+                </button>
+              </div>
+            ) : (
+              <div className="auth-links">
+                <NavLink to="/login" className="auth-link-login">
+                  <LogIn size={16} />
+                  <span>{t('auth.loginNav')}</span>
+                </NavLink>
+                <NavLink to="/register" className="auth-link-join">
+                  <UserPlus size={16} />
+                  <span>{t('auth.joinNav')}</span>
+                </NavLink>
+              </div>
+            )}
             <button className="icon-button mobile-only" onClick={() => setMobileSearchOpen(true)}>
               <Search size={20} />
             </button>
@@ -143,10 +175,15 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       <nav className="mobile-bottom-nav social-mobile-nav">
         {links.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} end={to === '/'}>
-            <Icon />
-            <span>{label}</span>
-          </NavLink>
+          <MotionNavLink key={to} to={to} end={to === '/'} {...pressable} transition={springs.snappy}>
+            {({ isActive }) => (
+              <>
+                <Icon />
+                <span>{label}</span>
+                {isActive && <motion.i className="nav-active-dot" layoutId="mobile-nav-dot" />}
+              </>
+            )}
+          </MotionNavLink>
         ))}
       </nav>
     </div>

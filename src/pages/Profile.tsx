@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -42,9 +43,9 @@ export default function Profile() {
     setError('');
     try {
       const [profileRes, servicesRes, contactsRes] = await Promise.all([
-        fetch('/api/profile?id=1'),
-        fetch('/api/services?profile_id=1'),
-        fetch('/api/contacts?profile_id=1'),
+        apiFetch('/profile?id=1'),
+        apiFetch('/services?profile_id=1'),
+        apiFetch('/contacts?profile_id=1'),
       ]);
       if (!profileRes.ok || !servicesRes.ok || !contactsRes.ok) throw new Error('Could not load this guide profile');
       const [profileData, servicesData, contactData] = await Promise.all([
@@ -85,7 +86,7 @@ export default function Profile() {
     setPaymentState('processing');
     setFormError('');
     try {
-      const res = await fetch('/api/bookings', {
+      const res = await apiFetch('/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ service_id: selectedService.id, guest_name: guestName, total }),

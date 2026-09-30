@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1, "name": "Ream Coastal Trail", "name_kh": "ផ្លូវមាត់សមុទ្ររាម", "category": "hidden-gems", "category_icon": "💎",
+    "province": "Preah Sihanouk",
+    "description_en": "A quiet sand-and-mangrove walk ending at a resting fishing fleet.",
+    "description_kh": "ផ្លូវខ្សាច់ និងកោងកាងស្ងប់ស្ងាត់ បញ្ចប់ត្រង់ទូកនេសាទសម្រាក។",
+    "rating": 4.8, "reviews": 214, "budget_min": 5, "budget_max": 20,
+    "image_url": "https://picsum.photos/seed/soksan-ream/900/1200",
+    "map_x": 30, "map_y": 88, "is_featured": true
+  },
+  {
+    "id": 2, "name": "Cloud Valley Coffee", "name_kh": "កាហ្វេជ្រលងពពក", "category": "aesthetic-cafes", "category_icon": "☕",
+    "province": "Mondulkiri",
+    "description_en": "Ridge-top café beside the bean farm that supplies it.",
+    "description_kh": "ហាងកាហ្វេលើភ្នំ ក្បែរចម្ការកាហ្វេដែលផ្គត់ផ្គង់វា។",
+    "rating": 4.7, "reviews": 168, "budget_min": 3, "budget_max": 12,
+    "image_url": "https://picsum.photos/seed/soksan-cloudcafe/900/1200",
+    "map_x": 78, "map_y": 42, "is_featured": false
+  },
+  {
+    "id": 3, "name": "Srae Thom Floating Stay", "name_kh": "ផ្ទះអណ្ដែតស្រែធំ", "category": "eco-resorts", "category_icon": "🌿",
+    "province": "Kampong Thom",
+    "description_en": "Overnight on the lake in a floating house; meals by paddle boat.",
+    "description_kh": "ស្នាក់នៅលើផ្ទះអណ្ដែត; អាហារមកដោយទូកចែវ។",
+    "rating": 4.9, "reviews": 97, "budget_min": 18, "budget_max": 45,
+    "image_url": "https://picsum.photos/seed/soksan-sraethom/900/1200",
+    "map_x": 52, "map_y": 38, "is_featured": true
+  },
+  {
+    "id": 4, "name": "Phsar Chas Noodle Corner", "name_kh": "ជ្រុងគុយទាវផ្សារចាស់", "category": "trip-stories", "category_icon": "📖",
+    "province": "Phnom Penh",
+    "description_en": "Three generations of one family serving the city's steadiest broth.",
+    "description_kh": "គ្រួសារតែមួយ ៣ ជំនាន់ លក់ទឹកស៊ុបដែលនឹងថ្កល់បំផុតក្នុងទីក្រុង។",
+    "rating": 4.6, "reviews": 421, "budget_min": 1, "budget_max": 5,
+    "image_url": "https://picsum.photos/seed/soksan-noodles/900/1200",
+    "map_x": 44, "map_y": 66, "is_featured": false
+  }
+]

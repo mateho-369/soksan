@@ -1,0 +1,24 @@
+{
+  "comments": {
+    "1": [
+      { "id": 1101, "post_id": 1, "author_name": "Vibol Rin", "avatar_url": "https://picsum.photos/seed/soksan-vibol/100/100", "body": "Went at 6am — completely empty. Thank you!", "comment_type": "text", "asset_url": null, "asset_value": null, "like_count": 12, "is_liked": false, "created_at": "2026-09-22T02:00:00+00:00" },
+      { "id": 1102, "post_id": 1, "author_name": "Sreyneang Keo", "avatar_url": "https://picsum.photos/seed/soksan-sreyneang/100/100", "body": "", "comment_type": "emoji", "asset_url": null, "asset_value": "🤩", "like_count": 5, "is_liked": false, "created_at": "2026-09-22T05:30:00+00:00" }
+    ],
+    "5": [
+      { "id": 5101, "post_id": 5, "author_name": "Piseth Chan", "avatar_url": "https://picsum.photos/seed/soksan-piseth/100/100", "body": "The water looks unreal. Which ferry did you take?", "comment_type": "text", "asset_url": null, "asset_value": null, "like_count": 8, "is_liked": false, "created_at": "2026-09-27T08:12:00+00:00" },
+      { "id": 5102, "post_id": 5, "author_name": "Malis Chea", "avatar_url": "https://picsum.photos/seed/soksan-malis/100/100", "body": "Speed ferry from Sihanoukville pier, first boat of the day.", "comment_type": "text", "asset_url": null, "asset_value": null, "like_count": 15, "is_liked": false, "created_at": "2026-09-27T09:01:00+00:00" }
+    ],
+    "6": [
+      { "id": 6101, "post_id": 6, "author_name": "Sreyneang Keo", "avatar_url": "https://picsum.photos/seed/soksan-sreyneang/100/100", "body": "Standing above the clouds — adding this to my list.", "comment_type": "text", "asset_url": null, "asset_value": null, "like_count": 21, "is_liked": false, "created_at": "2026-09-27T13:20:00+00:00" }
+    ],
+    "9": [
+      { "id": 9101, "post_id": 9, "author_name": "Vibol Rin", "avatar_url": "https://picsum.photos/seed/soksan-vibol/100/100", "body": "The Cardamoms never disappoint.", "comment_type": "text", "asset_url": null, "asset_value": null, "like_count": 30, "is_liked": false, "created_at": "2026-09-29T03:40:00+00:00" }
+    ]
+  },
+  "assets": [
+    { "id": 1, "label": "Wow", "asset_type": "emoji", "asset_url": null, "asset_value": "🤩", "active": true, "sort_order": 1 },
+    { "id": 2, "label": "Love", "asset_type": "emoji", "asset_url": null, "asset_value": "💚", "active": true, "sort_order": 2 },
+    { "id": 3, "label": "Fire", "asset_type": "emoji", "asset_url": null, "asset_value": "🔥", "active": true, "sort_order": 3 },
+    { "id": 4, "label": "Prayer", "asset_type": "emoji", "asset_url": null, "asset_value": "🙏", "active": true, "sort_order": 4 }
+  ]
+}

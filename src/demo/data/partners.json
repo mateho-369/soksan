@@ -1,0 +1,20 @@
+{
+  "partners": [
+    { "id": 1, "business_name": "Malis Coastal Guide", "business_name_kh": "មគ្គុទ្ទេសក៍មាត់សមុទ្រមាលិស", "partner_type": "local-guide", "province": "Preah Sihanouk", "city": "Sihanoukville", "phone": "+855965550001", "telegram_url": "https://t.me/soksan_network", "avatar_url": "https://picsum.photos/seed/soksan-malis/200/200", "cover_url": "https://picsum.photos/seed/soksan-ream/900/400", "description_en": "Quiet coastline walks, mangrove channels, and village breakfasts.", "description_kh": "ដើរឆ្នេរស្ងប់ស្ងាត់ ព្រែកកោងកាង និងអាហារពេលព្រឹកភូមិ។", "rating": 4.9, "review_count": 154, "completed_trips": 388, "verified": true, "active": true, "monthly_fee": 12 },
+    { "id": 2, "business_name": "Kampot Friendly Tuk-Tuk", "business_name_kh": "រ៉ឺម៉ករួសរាយកំពត", "partner_type": "tuk-tuk", "province": "Kampot", "city": "Krong Kampot", "phone": "+85592555002", "telegram_url": "https://t.me/soksan_network", "avatar_url": "https://picsum.photos/seed/soksan-tuk/200/200", "cover_url": "https://picsum.photos/seed/soksan-bokor/900/400", "description_en": "Bokor sunrise, pepper farms, salt fields, and night-market food runs.", "description_kh": "ថ្ងៃរះបូកគោ ចម្ការម្រេច វាលអំបិល និងដំណើរម្ហូបផ្សាររាត្រី។", "rating": 4.8, "review_count": 302, "completed_trips": 1476, "verified": true, "active": true, "monthly_fee": 10 },
+    { "id": 3, "business_name": "Highland Green Taxi", "business_name_kh": "តាក់ស៊ីបៃតងខ្ពង់រាប", "partner_type": "express-taxi", "province": "Mondulkiri", "city": "Sen Monorom", "phone": "+85588555003", "telegram_url": "https://t.me/soksan_network", "avatar_url": "https://picsum.photos/seed/soksan-taxi/200/200", "cover_url": "https://picsum.photos/seed/soksan-cloudcafe/900/400", "description_en": "Clean private rides to waterfalls, coffee farms, and Phnom Penh with clear prices.", "description_kh": "ដំណើរឯកជនស្អាតទៅទឹកជ្រោះ ចម្ការកាហ្វេ និងភ្នំពេញ ជាមួយតម្លៃច្បាស់។", "rating": 4.7, "review_count": 121, "completed_trips": 640, "verified": true, "active": true, "monthly_fee": 18 }
+  ],
+  "categories": [
+    { "id": 1, "slug": "local-guide", "label_en": "Local Guides", "label_kh": "មគ្គុទ្ទេសក៍ក្នុងស្រុក", "icon": "🧭", "monthly_fee": 12, "description_en": "Verified community guides.", "description_kh": "មគ្គុទ្ទេសក៍សហគមន៍ផ្ទៀងផ្ទាត់។", "sort_order": 1 },
+    { "id": 2, "slug": "tuk-tuk", "label_en": "Tuk-Tuks", "label_kh": "រ៉ឺម៉ក", "icon": "🛺", "monthly_fee": 10, "description_en": "City and countryside rides.", "description_kh": "ដំណើរក្នុងទីក្រុង និងជនបទ។", "sort_order": 2 },
+    { "id": 3, "slug": "express-taxi", "label_en": "Express Taxis", "label_kh": "តាក់ស៊ីល្បឿន", "icon": "🚕", "monthly_fee": 18, "description_en": "Inter-province private cars.", "description_kh": "ឡានឯកជនរវាងខេត្ត។", "sort_order": 3 },
+    { "id": 4, "slug": "bus-operator", "label_en": "Bus Operators", "label_kh": "ក្រុមហ៊ុនឡានក្រុង", "icon": "🚌", "monthly_fee": 25, "description_en": "Long-distance routes.", "description_kh": "ផ្លូវចម្ងាយឆ្ងាយ។", "sort_order": 4 }
+  ],
+  "provinces": [
+    { "id": 1, "name": "Preah Sihanouk", "name_kh": "ព្រះសីហនុ", "icon": "🌊" },
+    { "id": 2, "name": "Kampot", "name_kh": "កំពត", "icon": "🌿" },
+    { "id": 3, "name": "Mondulkiri", "name_kh": "មណ្ឌលគិរី", "icon": "🌄" },
+    { "id": 4, "name": "Siem Reap", "name_kh": "សៀមរាប", "icon": "🛕" },
+    { "id": 5, "name": "Phnom Penh", "name_kh": "ភ្នំពេញ", "icon": "🌆" }
+  ]
+}

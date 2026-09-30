@@ -1,72 +1,32 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LoadingState, ErrorState } from '../components/States';
+import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import type { Destination, Category } from '../types';
 
-export default function Discover() {
-  const { language, t } = useLanguage();
-  const [searchParams] = useSearchParams();
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [category, setCategory] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+interface DestinationListProps {
+  destinations: Destination[];
+  selectedId: number | null;
+  language: 'en' | 'kh';
+  onSelect: (id: number) => void;
+}
 
-  const query = searchParams.get('q') || '';
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams();
-      if (category) params.set('category', category);
-      if (query) params.set('search', query);
-      const [destinationsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/destinations?${params}`),
-        fetch('/api/categories'),
-      ]);
-      if (!destinationsRes.ok || !categoriesRes.ok) throw new Error('The map could not find its way.');
-      const [destinationsData, categoriesData] = await Promise.all([destinationsRes.json(), categoriesRes.json()]);
-      setDestinations(destinationsData);
-      setCategories(categoriesData);
-      if (destinationsData.length) {
-        setSelectedId((current) =>
-          current && destinationsData.some((d: Destination) => d.id === current) ? current : destinationsData[0].id,
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load map');
-    } finally {
-      setLoading(false);
-    }
-  }, [query, category]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
-
-  const DestinationList = () => (
+function DestinationList({ destinations, selectedId, language, onSelect }: DestinationListProps) {
+  return (
     <div className="destination-list">
       {destinations.map((destination, index) => (
         <motion.button
           key={destination.id}
           className={`destination-card ${selectedId === destination.id ? 'selected' : ''}`}
-          onClick={() => {
-            setSelectedId(destination.id);
-            setSheetOpen(false);
-          }}
+          onClick={() => onSelect(destination.id)}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
         >
-          <img src={destination.image_url} alt={destination.name} />
+          <img src={destination.image_url} alt={destination.name} loading="lazy" />
           <div className="destination-card-body">
             <div className="destination-meta">
               <span>
@@ -91,6 +51,65 @@ export default function Discover() {
         </motion.button>
       ))}
     </div>
+  );
+}
+
+export default function Discover() {
+  const { language, t } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [category, setCategory] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const query = searchParams.get('q') || '';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (query) params.set('search', query);
+      const [destinationsRes, categoriesRes] = await Promise.all([
+        apiFetch(`/destinations?${params}`),
+        apiFetch('/categories'),
+      ]);
+      if (!destinationsRes.ok || !categoriesRes.ok) throw new Error('The map could not find its way.');
+      const [destinationsData, categoriesData] = await Promise.all([destinationsRes.json(), categoriesRes.json()]);
+      setDestinations(destinationsData);
+      setCategories(categoriesData);
+      if (destinationsData.length) {
+        setSelectedId((current) =>
+          current && destinationsData.some((d: Destination) => d.id === current) ? current : destinationsData[0].id,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load map');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, category]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
+
+  const destinationList = (
+    <DestinationList
+      destinations={destinations}
+      selectedId={selectedId}
+      language={language}
+      onSelect={(id) => {
+        setSelectedId(id);
+        setSheetOpen(false);
+      }}
+    />
   );
 
   return (
@@ -119,7 +138,15 @@ export default function Discover() {
           <strong>{destinations.length}</strong> {t('nearby')}
           <span>{t('budget')} · USD</span>
         </div>
-        {loading ? <LoadingState compact /> : error ? <ErrorState message={error} onRetry={load} /> : <DestinationList />}
+        {loading ? (
+          <LoadingState compact />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : destinations.length === 0 ? (
+          <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
+        ) : (
+          destinationList
+        )}
       </aside>
 
       <section className="map-stage">
@@ -187,7 +214,13 @@ export default function Discover() {
               <X />
             </button>
           </div>
-          {loading ? <LoadingState compact /> : <DestinationList />}
+          {loading ? (
+            <LoadingState compact />
+          ) : destinations.length === 0 ? (
+            <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
+          ) : (
+            destinationList
+          )}
         </div>
       </section>
     </div>

@@ -1,3 +1,12 @@
+export interface AuthUser {
+  id: number;
+  name: string;
+  name_kh: string | null;
+  email: string;
+  avatar_url: string;
+  role: 'user' | 'admin';
+}
+
 export interface Category {
   id: number;
   label_en: string;
@@ -72,7 +81,11 @@ export interface Post {
   like_count: number;
   comment_count: number;
   share_count: number;
+  view_count?: number;
+  commune_id?: number | null;
+  commune_name?: string;
   is_liked: boolean;
+  is_saved?: boolean;
   business_name: string | null;
   destination_id: number | null;
   created_at: string;
@@ -287,4 +300,34 @@ export interface RankProvince {
   rank: number;
   active_score: number;
   spots: RankSpot[];
+}
+
+/* Phase 1 — Cambodia administrative hierarchy (commune -> district -> province) */
+export interface GeoProvince {
+  id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+  icon?: string;
+}
+export interface GeoDistrict {
+  id: number;
+  province_id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+}
+export interface GeoCommune {
+  id: number;
+  district_id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+  latitude?: number;
+  longitude?: number;
+}
+export interface Geography {
+  provinces: GeoProvince[];
+  districts: GeoDistrict[];
+  communes: GeoCommune[];
 }

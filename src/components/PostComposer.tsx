@@ -1,8 +1,11 @@
+import { apiFetch } from '../lib/http';
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ImagePlus, Play, X, MapPin, Camera, Smile, Send } from 'lucide-react';
+import { ImagePlus, Play, X, MapPin, Camera, Smile, Send, UserRound } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import type { Category, Province } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import type { Category, Province, Geography } from '../types';
 
 interface PendingMedia {
   file: File;
@@ -19,6 +22,8 @@ interface PostComposerProps {
 
 export default function PostComposer({ categories, provinces, onPosted }: PostComposerProps) {
   const { language, t } = useLanguage();
+  const { user, initializing } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [caption, setCaption] = useState('');
   const [placeName, setPlaceName] = useState('');
@@ -29,9 +34,30 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
   const [publishing, setPublishing] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // Phase 1 geography: users pick province -> district -> commune; only the
+  // commune is stored, district/province are derived from it server-side.
+  const [geography, setGeography] = useState<Geography | null>(null);
+  const [districtId, setDistrictId] = useState('');
+  const [communeId, setCommuneId] = useState('');
+
+  useEffect(() => {
+    if (!open || geography) return;
+    apiFetch('/geography')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Geography | null) => data && setGeography(data))
+      .catch(() => {});
+  }, [open, geography]);
+
+  const districtOptions = (geography?.districts || []).filter((district) => {
+    const parent = geography?.provinces.find((item) => item.id === district.province_id);
+    return !province || !parent || parent.name === province;
+  });
+  const communeOptions = (geography?.communes || []).filter(
+    (commune) => !districtId || commune.district_id === Number(districtId),
+  );
+
   useEffect(
     () => () => mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [mediaFiles],
   );
 
@@ -136,7 +162,7 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
       for (let i = 0; i < mediaFiles.length; i++) {
         const item = mediaFiles[i];
         const base64 = await toBase64(item.file);
-        const res = await fetch('/api/upload', {
+        const res = await apiFetch('/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -155,20 +181,20 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
         });
         setProgress(Math.round(((i + 1) / mediaFiles.length) * 80));
       }
-      const res = await fetch('/api/posts', {
+      const res = await apiFetch('/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profile_id: 3,
           category,
           location_name: placeName,
           province,
           caption,
+          commune_id: communeId ? Number(communeId) : null,
           media: uploaded,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not publish post');
+      if (!res.ok) throw new Error(data.message || data.error || 'Could not publish post');
       setProgress(100);
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview));
       setMediaFiles([]);
@@ -185,10 +211,31 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
     }
   };
 
+  // Guests can browse everything for free; posting needs a free account.
+  // While the stored session is still loading, render nothing to avoid a
+  // login CTA flashing for returning users.
+  if (initializing) {
+    return <section className="post-composer" aria-busy="true" />;
+  }
+
+  if (!user) {
+    return (
+      <section className="post-composer composer-guest">
+        <div className="composer-guest-text">
+          <h3>{t('auth.composerLoginTitle')}</h3>
+          <p>{t('auth.composerLoginBody')}</p>
+        </div>
+        <button className="composer-guest-cta" onClick={() => navigate('/login')}>
+          <UserRound size={16} /> {t('auth.composerLoginCta')}
+        </button>
+      </section>
+    );
+  }
+
   return (
     <motion.section className={`post-composer ${open ? 'open' : ''}`} layout>
       <div className="composer-start">
-        <img src="/images/traveler-dara.jpg" alt="" />
+        <img src={user.avatar_url} alt="" />
         <button onClick={() => setOpen(true)}>{t('social.composerPrompt')}</button>
         <span className="composer-free-chip">{t('access.freeChip')}</span>
         <label>
@@ -232,7 +279,16 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
                 placeholder={t('social.placeName')}
               />
             </label>
-            <select value={province} onChange={(event) => setProvince(event.target.value)}>
+            <select
+              value={province}
+              onChange={(event) => {
+                setProvince(event.target.value);
+                // Changing the province invalidates the narrower picks.
+                setDistrictId('');
+                setCommuneId('');
+              }}
+              aria-label={t('social.chooseProvince')}
+            >
               <option value="">{t('social.chooseProvince')}</option>
               {provinces.map((item) => (
                 <option key={item.id} value={item.name}>
@@ -240,7 +296,38 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
                 </option>
               ))}
             </select>
-            <select value={category} onChange={(event) => setCategory(event.target.value)}>
+            <select
+              value={districtId}
+              onChange={(event) => {
+                setDistrictId(event.target.value);
+                setCommuneId('');
+              }}
+              aria-label={t('social.chooseDistrict')}
+            >
+              <option value="">{t('social.chooseDistrict')}</option>
+              {districtOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {language === 'kh' ? item.name_kh : item.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={communeId}
+              onChange={(event) => setCommuneId(event.target.value)}
+              aria-label={t('social.chooseCommune')}
+            >
+              <option value="">{t('social.chooseCommune')}</option>
+              {communeOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {language === 'kh' ? item.name_kh : item.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              aria-label="Category"
+            >
               {categories.map((item) => (
                 <option key={item.id} value={item.slug}>
                   {item.emoji} {language === 'kh' ? item.label_kh : item.label_en}

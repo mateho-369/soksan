@@ -1,0 +1,133 @@
+# SokSan Network — full local stack
+# Usage: cp .env.example .env  (optional, defaults work) then:
+#   docker compose up --build
+# Frontend: http://localhost:5173   API: http://localhost:8000/api/v1
+
+name: soksan
+
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-soksan}
+      POSTGRES_USER: ${DB_USERNAME:-soksan}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-soksan-dev}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    # Cache, counters, leaderboard, sessions, rate limiting and queues.
+    # SECURITY: intentionally NO "ports:" mapping — Redis is reachable only
+    # from containers on this compose network, never from the host or the
+    # internet.
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      # Generated on first boot when empty.
+      APP_KEY: ${APP_KEY:-}
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:-soksan}
+      DB_USERNAME: ${DB_USERNAME:-soksan}
+      DB_PASSWORD: ${DB_PASSWORD:-soksan-dev}
+      # Redis — internal hostname, never exposed to the host/internet.
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      FEED_CACHE_TTL: ${FEED_CACHE_TTL:-60}
+      FRONTEND_URL: http://localhost:5173
+      MEDIA_DISK: ${MEDIA_DISK:-public}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - media-storage:/var/www/api/storage/app/public
+
+  # Dedicated queue workers: moderation (and everything else queued) runs
+  # here, never inside the request/response cycle. Scale by raising
+  # `deploy.replicas` or running more copies — workers are stateless.
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY:-}
+      APP_URL: http://localhost:8000
+      APP_ROLE: worker
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:-soksan}
+      DB_USERNAME: ${DB_USERNAME:-soksan}
+      DB_PASSWORD: ${DB_PASSWORD:-soksan-dev}
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      SEED_DEMO: "false"
+
+  web:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm ci && npx vite --host 0.0.0.0 --port 5173"
+    environment:
+      # Real backend mode: disable the in-browser demo API and proxy /api.
+      VITE_USE_MOCK: "false"
+      VITE_DEV_PROXY: http://api:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/app
+    depends_on:
+      - api
+
+volumes:
+  db-data:
+  media-storage:
+  redis-data:

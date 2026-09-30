@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -32,7 +33,7 @@ export default function MerchantCenter() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/boosts');
+      const res = await apiFetch('/boosts');
       if (!res.ok) throw new Error('Merchant insights are unavailable');
       setData(await res.json());
     } catch (err) {
