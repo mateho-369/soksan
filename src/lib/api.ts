@@ -410,6 +410,11 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         province: derivedProvince || body.province,
         commune_id: pickedCommune ? pickedCommune.id : null,
         commune_name: pickedCommune ? pickedCommune.name : undefined,
+        // Phase 2: optional manual pin. In production the server verifies
+        // business places via Google Places (backend PlacesService); regular
+        // users may attach raw coordinates.
+        lat: typeof body.latitude === 'number' ? body.latitude : null,
+        lng: typeof body.longitude === 'number' ? body.longitude : null,
         media_url: media[0]?.media_url || '',
         media_type: media[0]?.media_type || 'image',
         caption_en: body.caption,
@@ -595,6 +600,31 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     const target = posts.find((p) => p.author.id === body.profile_id);
     if (target) applyFollowState(body.profile_id, !target.author.is_following);
     return jsonResponse({ ok: true });
+  }
+
+  /* ---- places: one-time confirmation (Phase 2) ----
+   * Demo seam mirroring POST /api/v1/places/confirm. The real backend
+   * (PlacesService) calls the Google Places API exactly once per business
+   * registration and stores place_id + lat/lng; without an API key the demo
+   * layer acknowledges the request deterministically. Manual pins (regular
+   * users) pass through unchanged. */
+  if (path === '/api/places/confirm' && method === 'POST') {
+    if (!bearerUser(init)) return unauthorized();
+    if (body.place_id) {
+      return jsonResponse({
+        source: 'google_places',
+        place_id: body.place_id,
+        name: body.name || 'Confirmed place',
+        formatted_address: body.name ? `${body.name}, Cambodia` : 'Cambodia',
+        lat: typeof body.lat === 'number' ? body.lat : 11.5564,
+        lng: typeof body.lng === 'number' ? body.lng : 104.9282,
+        confirmed: true,
+      });
+    }
+    if (typeof body.lat === 'number' && typeof body.lng === 'number') {
+      return jsonResponse({ source: 'manual', lat: body.lat, lng: body.lng, confirmed: true });
+    }
+    return jsonResponse({ error: 'Provide a place_id or lat/lng' }, 422);
   }
 
   /* ---- conversations / messages ---- */

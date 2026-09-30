@@ -75,6 +75,7 @@ docker compose run --rm api php artisan test
 | `ADMIN_FRONTEND_URL`           | Reserved for the future admin site             |
 | `MEDIA_DISK`                   | `public` (local) or `r2` (Cloudflare R2)       |
 | `R2_*`                         | R2 bucket credentials (production only)        |
+| `GOOGLE_PLACES_API_KEY`        | One-time business-registration confirm only. Public maps use OpenFreeMap / PMTiles, never Google. |
 
 ## Folder map
 
@@ -84,9 +85,10 @@ docker compose run --rm api php artisan test
 │   ├── App.tsx               # routes + providers (lazy-loaded pages)
 │   ├── lib/http.ts           # API client (base URL, bearer token)
 │   ├── lib/api.ts            # in-browser demo backend (/api/v1 contract)
+│   ├── lib/mapConfig.ts      # map tile source + bounds (OpenFreeMap now, PMTiles-ready)
 │   ├── contexts/             # LanguageContext (KH/EN), AuthContext
 │   ├── pages/                # Home, Discover, Clips, Auth, …
-│   ├── components/           # feed, composer, viewer, layout
+│   ├── components/           # feed, composer, viewer, layout, map/
 │   └── test/                 # Vitest suites (critical flows)
 └── backend/                  # Laravel 12 REST API
     ├── routes/api.php        # versioned endpoints (/api/v1/…)
@@ -110,7 +112,8 @@ docker compose run --rm api php artisan test
 | POST     | `/api/v1/posts/{id}/view`    | public | clip view counter (Redis INCR) |
 | GET      | `/api/v1/leaderboard`        | public | province leaderboard (Redis ZSET) |
 | GET      | `/api/v1/rankings?scope=communes\|districts\|provinces` | public | geography rankings, recency decay (21-day half-life), rolls up commune → district → province |
-| POST     | `/api/v1/posts`              | token  | creates place + media refs  |
+| POST     | `/api/v1/places/confirm`     | token  | one-time Google Places confirmation (`place_id`) or manual pin (`lat`/`lng`) |
+| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin) |
 | PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
 | DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |
 | POST     | `/api/v1/uploads`            | token  | base64 media, allowlist + size limits |
@@ -190,9 +193,11 @@ The backend is admin-ready without rewrites:
   must be exercised on a machine with Docker (this repo's CI sandbox has no
   PHP). `docker compose up --build` + `php artisan test` is the verification
   path.
-- Map rendering uses the built-in stylized map; MapLibre GL JS integration
-  (fed by `posts.latitude/longitude` and the PostGIS `location_point`
-  column) is the next iteration.
+- Public maps render with MapLibre GL JS over free OpenFreeMap vector tiles
+  (no API key). The tile source is centralized in `src/lib/mapConfig.ts` so
+  the launch-region demo can swap to self-hosted PMTiles later without
+  touching any component. Google is never used for map rendering — only the
+  one-time business-registration confirm (`GOOGLE_PLACES_API_KEY`).
 - The demo backend's data resets on reload (it is a demo, not storage).
 - All demo content is original, self-contained, and isolated in `src/demo/`
   — see `src/demo/README.md` for the one-step removal when the real API

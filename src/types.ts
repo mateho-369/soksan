@@ -84,6 +84,8 @@ export interface Post {
   view_count?: number;
   commune_id?: number | null;
   commune_name?: string;
+  lat?: number | null;
+  lng?: number | null;
   is_liked: boolean;
   is_saved?: boolean;
   business_name: string | null;
@@ -123,8 +125,8 @@ export interface Destination {
   budget_min: number;
   budget_max: number;
   image_url: string;
-  map_x: number;
-  map_y: number;
+  lat: number;
+  lng: number;
   is_featured: boolean;
 }
 

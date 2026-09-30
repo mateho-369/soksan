@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderAppAt } from './render';
+import { MockMap, mapMock } from './maplibre-mock';
 
 /**
  * QA pass — SIGNED-IN journey. Every core action a member takes: login,
@@ -121,6 +122,20 @@ describe('QA — signed-in journey', () => {
 
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
     await user.upload(fileInput as HTMLElement, new File(['qa-bytes'], 'qa.jpg', { type: 'image/jpeg' }));
+
+    // Phase 2 manual pin path: open the picker, drop a pin, confirm.
+    await user.click(screen.getByRole('button', { name: /pin on map/i }));
+    const pickerMap = await waitFor(() => {
+      const map = mapMock.lastMap();
+      expect(map).toBeTruthy();
+      return map as InstanceType<typeof MockMap>;
+    });
+    await waitFor(() => {
+      pickerMap.emit('click', { lngLat: { lat: 10.6501, lng: 104.1623 } });
+      expect(screen.getByText(/10\.65010, 104\.16230/)).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /use this location/i }));
+    expect(await screen.findByText(/pinned at 10\.6501, 104\.1623/i)).toBeInTheDocument();
 
     const publish = await screen.findByRole('button', { name: /post free/i });
     await waitFor(() => expect(publish).toBeEnabled());

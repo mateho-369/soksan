@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LoadingState, ErrorState, EmptyState } from '../components/States';
+import SokSanMap from '../components/map/SokSanMap';
+import { isInsideCambodia, type LatLng } from '../lib/mapConfig';
 import type { Destination, Category } from '../types';
 
 interface DestinationListProps {
@@ -64,6 +66,7 @@ export default function Discover() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [focus, setFocus] = useState<(LatLng & { token: number }) | null>(null);
 
   const query = searchParams.get('q') || '';
 
@@ -99,6 +102,33 @@ export default function Discover() {
   }, [load]);
 
   const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
+
+  const mapPins = useMemo(
+    () =>
+      destinations.map((destination) => ({
+        id: destination.id,
+        lat: destination.lat,
+        lng: destination.lng,
+        label: language === 'kh' ? destination.name_kh : destination.name,
+        icon: destination.category_icon,
+      })),
+    [destinations, language],
+  );
+
+  const locateMe = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        // Stay honest to the launch region: ignore positions far outside it.
+        if (!isInsideCambodia(point)) return;
+        setFocus({ ...point, token: Date.now() });
+      },
+      () => {
+        /* permission denied — leave the map where it is */
+      },
+    );
+  };
 
   const destinationList = (
     <DestinationList
@@ -150,24 +180,15 @@ export default function Discover() {
       </aside>
 
       <section className="map-stage">
-        <div className="map-topography" />
-        <div className="map-label label-north">Preah Vihear</div>
-        <div className="map-label label-center">Tonlé Sap</div>
-        <div className="map-label label-east">Mondulkiri</div>
-        <div className="map-label label-south">Gulf of Thailand</div>
-        {destinations.map((destination) => (
-          <button
-            key={destination.id}
-            className={`map-pin ${selectedId === destination.id ? 'selected' : ''}`}
-            style={{ left: `${destination.map_x}%`, top: `${destination.map_y}%` }}
-            onClick={() => setSelectedId(destination.id)}
-            aria-label={destination.name}
-          >
-            <span>{destination.category_icon}</span>
-            <i />
-          </button>
-        ))}
-        <button className="locate-button">
+        <SokSanMap
+          className="discover-map"
+          pins={mapPins}
+          selectedId={selectedId}
+          onPinClick={(id) => setSelectedId(Number(id))}
+          focus={focus}
+          ariaLabel={t('map.discoverLabel')}
+        />
+        <button className="locate-button" onClick={locateMe}>
           <LocateFixed size={19} /> <span>Near me</span>
         </button>
         {selected && (

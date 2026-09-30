@@ -24,6 +24,7 @@ class Post extends Model
         'commune_id',
         'district_id',
         'geo_province_id',
+        'place_id',
     ];
 
     protected function casts(): array

@@ -36,6 +36,12 @@ Nothing outside those three files imports from `src/demo/`.
   `GET /geography`, `GET /rankings/geography?scope=communes|districts|provinces`
   (same recency-decay formula as the backend `RankingService`:
   `(1 + likes + 2·comments + shares + views/100) · 0.5^(age/21d)`).
+- Phase 2 map: `destinations.json` carries real `lat`/`lng` (the old
+  `map_x`/`map_y` percentages are gone). Tiles come from OpenFreeMap via
+  `src/lib/mapConfig.ts` — the demo has NO map API key of its own. The
+  manual-pin path (`POST /api/places/confirm` with `lat`/`lng`) is mirrored
+  in the demo seam; the Google Places branch needs a production key and is
+  stubbed.
 
 ## Media sources (placeholders)
 

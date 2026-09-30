@@ -2,9 +2,11 @@ import { apiFetch } from '../lib/http';
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ImagePlus, Play, X, MapPin, Camera, Smile, Send, UserRound } from 'lucide-react';
+import { ImagePlus, Play, X, MapPin, Camera, Smile, Send, UserRound, MapPinned } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import PlacePicker from './map/PlacePicker';
+import type { LatLng } from '../lib/mapConfig';
 import type { Category, Province, Geography } from '../types';
 
 interface PendingMedia {
@@ -39,6 +41,15 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
   const [geography, setGeography] = useState<Geography | null>(null);
   const [districtId, setDistrictId] = useState('');
   const [communeId, setCommuneId] = useState('');
+
+  // Phase 2 map: optional manual pin (regular users without a Places match).
+  const [pin, setPin] = useState<LatLng | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerCenter = useMemo<[number, number] | undefined>(() => {
+    const commune = (geography?.communes || []).find((item) => item.id === Number(communeId));
+    if (commune?.latitude != null && commune?.longitude != null) return [commune.longitude, commune.latitude];
+    return undefined;
+  }, [geography, communeId]);
 
   useEffect(() => {
     if (!open || geography) return;
@@ -190,12 +201,16 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           province,
           caption,
           commune_id: communeId ? Number(communeId) : null,
+          // Optional manual pin — matches the backend StorePostRequest.
+          latitude: pin ? pin.lat : null,
+          longitude: pin ? pin.lng : null,
           media: uploaded,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Could not publish post');
       setProgress(100);
+      setPin(null);
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview));
       setMediaFiles([]);
       setCaption('');
@@ -323,6 +338,28 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
                 </option>
               ))}
             </select>
+            <div className="composer-pin-row">
+              <button
+                type="button"
+                className="composer-pin-button"
+                onClick={() => setPickerOpen(true)}
+                aria-label={t('map.composerPin')}
+              >
+                <MapPinned size={15} /> {t('map.composerPin')}
+              </button>
+              {pin && (
+                <span className="composer-pin-chip">
+                  {t('map.pinnedAt')} {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+                  <button
+                    type="button"
+                    onClick={() => setPin(null)}
+                    aria-label={t('map.clearPin')}
+                  >
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+            </div>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -375,6 +412,16 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
             </div>
           )}
         </div>
+      )}
+      {pickerOpen && (
+        <PlacePicker
+          initialCenter={pickerCenter}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={(point) => {
+            setPin(point);
+            setPickerOpen(false);
+          }}
+        />
       )}
     </motion.section>
   );

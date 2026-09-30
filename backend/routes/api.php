@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\FollowController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\LikeController;
 use App\Http\Controllers\Api\V1\OpsController;
+use App\Http\Controllers\Api\V1\PlaceController;
 use App\Http\Controllers\Api\V1\PostController;
 use App\Http\Controllers\Api\V1\RankingController;
 use App\Http\Controllers\Api\V1\UploadController;
@@ -61,6 +62,10 @@ Route::prefix('v1')->group(function () {
 
         Route::post('users/{user}/follow', [FollowController::class, 'store']);
         Route::delete('users/{user}/follow', [FollowController::class, 'destroy']);
+
+        // Phase 2 — one-time Google Places confirmation (business) or a
+        // manual pin (regular users). See PlacesService.
+        Route::post('places/confirm', [PlaceController::class, 'confirm']);
 
         // Monitoring hooks for the scaling plan (queue depth, DB
         // connections, Redis liveness). Admin-only, never public.

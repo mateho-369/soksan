@@ -26,11 +26,17 @@ export default defineConfig(async ({ mode }) => {
         : undefined,
     },
     build: {
+      // MapLibre GL ships ~1 MB minified; it lives in its own lazy-loaded
+      // chunk (see manualChunks below), so the raised limit is deliberate.
+      chunkSizeWarningLimit: 1100,
       rollupOptions: {
         output: {
           manualChunks: {
             react: ['react', 'react-dom', 'react-router-dom'],
             motion: ['framer-motion'],
+            // MapLibre is heavy; keep it out of the main chunk so the feed
+            // loads fast and only map screens pay the cost.
+            map: ['maplibre-gl'],
           },
         },
       },
