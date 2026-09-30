@@ -39,6 +39,11 @@ if (!window.IntersectionObserver) {
   } as unknown as typeof IntersectionObserver;
 }
 if (!window.scrollTo) window.scrollTo = () => {};
+// jsdom does not implement Element.scrollIntoView; the Messages chat uses it
+// to auto-scroll to the newest message. Provide a no-op so the page works.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
 // jsdom/vitest stubs cannot build object URLs from jsdom File objects, so
 // replace them unconditionally with deterministic no-ops.
 URL.createObjectURL = () => 'blob:mock-object-url';

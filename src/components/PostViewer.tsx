@@ -408,7 +408,7 @@ export default function PostViewer({
             size="lg"
             label={t('social.like')}
           />
-          <button onClick={() => setCommentsOpen(true)}>
+          <button onClick={() => setCommentsOpen(true)} aria-label={t('social.comment')}>
             <span>
               <MessageCircle />
             </span>
@@ -416,7 +416,7 @@ export default function PostViewer({
               <AnimatedNumber value={post.comment_count} />
             </b>
           </button>
-          <button onClick={() => onInteract(post.id, 'share')}>
+          <button onClick={() => onInteract(post.id, 'share')} aria-label={t('social.share')}>
             <span>
               <Share2 />
             </span>

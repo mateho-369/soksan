@@ -125,7 +125,7 @@ export default function CommentDrawer({ post, open, onClose, onComment }: Commen
   return (
     <>
       {open && (
-        <button className="comment-drawer-backdrop clip-comment-backdrop" onClick={onClose} aria-label="Close comments" />
+        <button className="comment-drawer-backdrop clip-comment-backdrop" onClick={onClose} aria-label="Dismiss comments" />
       )}
       <aside
         className={`viewer-comment-drawer clip-comment-drawer ${open ? 'open' : ''}`}

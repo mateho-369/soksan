@@ -99,7 +99,7 @@ export default function BoostModal({ post, onClose, onComplete }: BoostModalProp
                 </span>
                 <h2>{step === 'done' ? 'Your gem is being discovered' : 'Boost this local story'}</h2>
               </div>
-              <button onClick={onClose}>
+              <button onClick={onClose} aria-label="Close boost dialog">
                 <X />
               </button>
             </header>
