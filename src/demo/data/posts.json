@@ -14,6 +14,10 @@
     "comment_count": 3,
     "share_count": 41,
     "view_count": 12400,
+    "safety_tags": [
+      "family_friendly",
+      "well_lit"
+    ],
     "is_liked": false,
     "is_saved": false,
     "business_name": null,
@@ -75,6 +79,10 @@
     "comment_count": 2,
     "share_count": 27,
     "view_count": 9800,
+    "safety_tags": [
+      "wheelchair_accessible",
+      "accessible_restroom"
+    ],
     "is_liked": false,
     "is_saved": false,
     "business_name": "Cloud Valley Coffee",
@@ -128,6 +136,10 @@
     "comment_count": 1,
     "share_count": 19,
     "view_count": 7300,
+    "safety_tags": [
+      "solo_friendly",
+      "quiet_space"
+    ],
     "is_liked": false,
     "is_saved": false,
     "business_name": "Srae Thom Homestay",

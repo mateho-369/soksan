@@ -301,6 +301,20 @@ const en: Dict = {
     backHome: 'Back to the feed',
     exploreMore: 'Explore more on SokSan',
   },
+  safety: {
+    blockLabel: 'Safety & accessibility (optional)',
+    note: 'These are traveller observations, not guarantees — SokSan cannot verify them.',
+    tag: {
+      well_lit: 'Well-lit at night',
+      security_present: 'Security on site',
+      family_friendly: 'Family-friendly',
+      solo_friendly: 'Solo-traveller friendly',
+      wheelchair_accessible: 'Wheelchair accessible',
+      accessible_restroom: 'Accessible restroom',
+      step_free: 'Step-free entrance',
+      quiet_space: 'Quiet space',
+    },
+  },
   chat: {
     title: 'Travel Chat',
     localGuides: 'Local Guides',
@@ -658,6 +672,20 @@ const kh: Dict = {
     notFound: 'រឿងនេះមិនមានទៀតទេ។',
     backHome: 'ត្រឡប់ទៅផ្នែកព័ត៌មាន',
     exploreMore: 'រុករកបន្ថែមលើ SokSan',
+  },
+  safety: {
+    blockLabel: 'សុវត្ថិភាព និងភាពងាយស្រួល (ស្រេចចិត្ត)',
+    note: 'ទាំងនេះជាការសង្កេតរបស់អ្នកដំណើរ មិនមែនជាការធានាទេ — SokSan មិនអាចផ្ទៀងផ្ទាត់បានទេ។',
+    tag: {
+      well_lit: 'មានភ្លើងបំភ្លឺពេលយប់',
+      security_present: 'មានសន្តិសុខនៅកន្លែង',
+      family_friendly: 'ស័ក្តិសមសម្រាប់គ្រួសារ',
+      solo_friendly: 'សម្រាប់អ្នកដំណើរម្នាក់ឯង',
+      wheelchair_accessible: 'ចូលបានដោយរទេះរុញ',
+      accessible_restroom: 'បន្ទប់ទឹកងាយស្រួលចូល',
+      step_free: 'ច្រកចូលគ្មានជណ្ដើរ',
+      quiet_space: 'កន្លែងស្ងប់ស្ងាត់',
+    },
   },
   chat: {
     title: 'ការជជែកដំណើរ',

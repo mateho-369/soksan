@@ -25,6 +25,7 @@ class Post extends Model
         'district_id',
         'geo_province_id',
         'place_id',
+        'safety_tags',
     ];
 
     protected function casts(): array
@@ -32,6 +33,8 @@ class Post extends Model
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            // Phase 9 — safety & accessibility tags arrive as a jsonb array.
+            'safety_tags' => 'array',
         ];
     }
 

@@ -21,6 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import '../styles/safety.css';
 import { LoadingState } from './States';
 import LikeButton from '../ui/LikeButton';
 import AnimatedNumber from '../ui/AnimatedNumber';
@@ -390,6 +391,14 @@ export default function PostViewer({
             </button>
           </div>
           <p>{caption}</p>
+          {/* Phase 9 — self-reported safety & accessibility observations. */}
+          {(post.safety_tags || []).length > 0 && (
+            <ul className="safety-display" aria-label={t('safety.blockLabel')}>
+              {(post.safety_tags || []).map((tag) => (
+                <li key={tag}>{t(`safety.tag.${tag}`)}</li>
+              ))}
+            </ul>
+          )}
           <span>{post.hashtags}</span>
         </div>
 

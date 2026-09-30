@@ -90,6 +90,21 @@ Nothing outside those three files imports from `src/demo/`.
   users. `GET /api/posts/{id}` serves published posts only and powers the
   public `/post/{id}` share landing page; the Hidden Gem banner deep-links
   there.
+- Phase 9 safety: posts carry optional self-reported `safety_tags` from a
+  CLOSED allow-list (`src/lib/safetyTags.ts`, mirrored by
+  `SafetyTagService` in the backend): well-lit, security on site,
+  family-friendly, solo-traveller friendly / wheelchair accessible,
+  accessible restroom, step-free entrance, quiet space. The composer
+  offers them as toggle pills; they render as quiet chips on the viewer
+  and the public `/post/{id}` page with an explicit
+  "observations, not guarantees" note. Unknown tags are rejected with 422
+  (seam + `StorePostRequest`/`UpdatePostRequest` rules). Tags never touch
+  ranking. Seeded demo tags: posts 1–3.
+- Phase 9 auto-translate: SKIPPED deliberately — the scope is
+  "auto-translate only if a translation service exists", and no
+  translation service is configured in this environment (no keys, no
+  provider). Nothing was faked: the UI i18n (EN/KH) covers the app
+  chrome, and post content stays in the author's language.
 
 ## Media sources (placeholders)
 

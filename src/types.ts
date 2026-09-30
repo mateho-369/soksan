@@ -88,6 +88,8 @@ export interface Post {
   lng?: number | null;
   /** Phase 5 moderation pipeline: published | pending_review | rejected. */
   status?: string;
+  /** Phase 9 — self-reported safety & accessibility tags (closed allow-list). */
+  safety_tags?: string[];
   is_liked: boolean;
   is_saved?: boolean;
   business_name: string | null;

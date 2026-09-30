@@ -1,0 +1,73 @@
+/* Phase 9 — Safety & accessibility tags.
+ *
+ * Self-reported traveller observations shown as small chips. They are
+ * informational only — never a guarantee, never a ranking signal — so the
+ * styling stays quiet and the note reminds readers they are observations. */
+
+/* Composer picker */
+.safety-block {
+  margin: 2px 0 10px;
+}
+
+.safety-block-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink-soft, #4b5563);
+  margin-bottom: 6px;
+}
+
+.safety-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.safety-chip {
+  border: 1px solid var(--line, #e5e1d8);
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #4b5563);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.safety-chip:hover {
+  border-color: var(--sage-500, #7c9885);
+}
+
+.safety-chip.on {
+  background: var(--sage-100, #e7efe9);
+  border-color: var(--sage-500, #7c9885);
+  color: var(--sage-700, #4c6a57);
+  font-weight: 600;
+}
+
+.safety-note {
+  margin: 7px 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-faint, #8a9088);
+}
+
+/* Display chips (viewer + public post page) */
+.safety-display {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.safety-display li {
+  background: var(--sage-100, #e7efe9);
+  color: var(--sage-700, #4c6a57);
+  border: 1px solid var(--sage-300, #c4d4c9);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}

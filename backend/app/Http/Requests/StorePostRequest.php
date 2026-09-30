@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Services\SafetyTagService;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StorePostRequest extends FormRequest
 {
@@ -28,6 +30,9 @@ class StorePostRequest extends FormRequest
             'media.*.media_url' => ['required_with:media', 'string', 'max:2048'],
             'media.*.media_type' => ['required_with:media', 'string', 'in:image,video'],
             'media.*.duration_seconds' => ['nullable', 'integer', 'min:0', 'max:300'],
+            // Phase 9 — safety & accessibility tags: closed allow-list only.
+            'safety_tags' => ['nullable', 'array', 'max:8'],
+            'safety_tags.*' => ['string', Rule::in(SafetyTagService::allowed())],
         ];
     }
 }

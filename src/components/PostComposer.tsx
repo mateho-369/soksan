@@ -1,5 +1,7 @@
 import { apiFetch } from '../lib/http';
+import { ACCESS_TAGS, MAX_SAFETY_TAGS, SAFETY_TAGS, type SafetyTag } from '../lib/safetyTags';
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import '../styles/safety.css';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ImagePlus, Play, X, MapPin, Camera, Smile, Send, UserRound, MapPinned } from 'lucide-react';
@@ -28,6 +30,8 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [caption, setCaption] = useState('');
+  // Phase 9 — optional self-reported safety & accessibility observations.
+  const [safetyTags, setSafetyTags] = useState<SafetyTag[]>([]);
   const [placeName, setPlaceName] = useState('');
   const [province, setProvince] = useState('');
   const [category, setCategory] = useState('hidden-gems');
@@ -71,6 +75,15 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
     () => () => mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview)),
     [mediaFiles],
   );
+
+  const toggleSafetyTag = (tag: SafetyTag) =>
+    setSafetyTags((current) =>
+      current.includes(tag)
+        ? current.filter((item) => item !== tag)
+        : current.length < MAX_SAFETY_TAGS
+          ? [...current, tag]
+          : current,
+    );
 
   const canPublish = Boolean(caption.trim() && placeName.trim() && province && category && mediaFiles.length > 0 && !publishing);
 
@@ -204,6 +217,8 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           // Optional manual pin — matches the backend StorePostRequest.
           latitude: pin ? pin.lat : null,
           longitude: pin ? pin.lng : null,
+          // Phase 9 — optional safety & accessibility observations.
+          safety_tags: safetyTags,
           media: uploaded,
         }),
       });
@@ -211,6 +226,7 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
       if (!res.ok) throw new Error(data.message || data.error || 'Could not publish post');
       setProgress(100);
       setPin(null);
+      setSafetyTags([]);
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview));
       setMediaFiles([]);
       setCaption('');
@@ -372,6 +388,26 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
               ))}
             </select>
           </div>
+
+          {/* Phase 9 — optional safety & accessibility observations. */}
+          <div className="safety-block">
+            <span className="safety-block-label">{t('safety.blockLabel')}</span>
+            <div className="safety-chips" role="group" aria-label={t('safety.blockLabel')}>
+              {[...SAFETY_TAGS, ...ACCESS_TAGS].map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`safety-chip${safetyTags.includes(tag) ? ' on' : ''}`}
+                  aria-pressed={safetyTags.includes(tag)}
+                  onClick={() => toggleSafetyTag(tag)}
+                >
+                  {t(`safety.tag.${tag}`)}
+                </button>
+              ))}
+            </div>
+            <p className="safety-note">{t('safety.note')}</p>
+          </div>
+
           {error && <div className="composer-error">{error}</div>}
           <div className="composer-footer">
             <div>

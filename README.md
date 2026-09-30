@@ -142,7 +142,7 @@ docker compose run --rm api php artisan test
 | GET/POST/PATCH | `/api/v1/admin/placements`        | role:admin | schedule partner placements (date ranges + active toggle; audited) |
 | POST     | `/api/v1/admin/hidden-gem`                | role:admin | pick Hidden Gem of the Week (published posts only, one per ISO week; audited) |
 | GET      | `/api/v1/admin/audit-logs`                | role:admin | append-only log of every admin action |
-| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin); a new author's FIRST post is held as `pending_review` |
+| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin, optional `safety_tags` from a closed allow-list); a new author's FIRST post is held as `pending_review` |
 | PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
 | DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |
 | POST     | `/api/v1/uploads`            | token  | base64 media, allowlist + size limits |
@@ -204,6 +204,20 @@ reachable from outside the stack.
 - Upload validation: MIME allowlist, size caps, random filenames.
 - RBAC from day one: `roles` table + `role:` middleware + policies
   (owner-or-admin) — the admin panel builds on this, not around it.
+
+## Safety tags & auto-translate (Phase 9)
+
+- Posts accept an optional `safety_tags` array validated against a CLOSED
+  allow-list (`SafetyTagService`; mirrored client-side in
+  `src/lib/safetyTags.ts`). Safety group: `well_lit`, `security_present`,
+  `family_friendly`, `solo_friendly`. Accessibility group:
+  `wheelchair_accessible`, `accessible_restroom`, `step_free`,
+  `quiet_space`. Unknown tags → 422. Tags are self-reported traveller
+  observations — displayed with that caveat, never used for ranking.
+- **Auto-translate is intentionally not implemented**: the scope is
+  "only if a translation service exists", and none is configured in this
+  environment. App chrome is i18n'd (EN/KH); post content stays in the
+  author's language.
 
 ## Admin panel (next step — designed, not built)
 

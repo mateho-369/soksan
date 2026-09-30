@@ -4,6 +4,7 @@
 // ─── DEMO SEAM ────────────────────────────────────────────────────────────
 // All seed content lives in src/demo/ (see src/demo/README.md). Delete that
 // folder and this file when the real backend takes over.
+import { isSafetyTag, MAX_SAFETY_TAGS } from './safetyTags';
 import postsSeed from '../demo/data/posts.json';
 import categoriesSeed from '../demo/data/categories.json';
 import adsSeed from '../demo/data/ads.json';
@@ -646,6 +647,14 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     if (method === 'POST') {
       const user = bearerUser(init);
       if (!user) return unauthorized();
+      // Phase 9 — safety & accessibility tags: closed allow-list only
+      // (mirrors StorePostRequest + SafetyTagService).
+      const rawTags: unknown[] = Array.isArray(body?.safety_tags) ? body.safety_tags : [];
+      const unknownTag = rawTags.find((tag) => !isSafetyTag(tag));
+      if (unknownTag !== undefined || rawTags.length > MAX_SAFETY_TAGS) {
+        return jsonResponse({ message: 'One or more safety tags are not allowed.' }, 422);
+      }
+      const safetyTags = [...new Set(rawTags as string[])];
       const media = (body.media || []).map(
         (m: { media_url: string; media_type: 'image' | 'video'; duration_seconds: number }, i: number) => ({
           id: nextMediaId++,
@@ -713,6 +722,8 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         is_saved: false,
         business_name: null,
         destination_id: null,
+        // Phase 9 — self-reported safety & accessibility observations.
+        safety_tags: safetyTags,
         created_at: nowISO(),
         author: clone(author),
         promotion: null,

@@ -7,6 +7,7 @@ import { LoadingState } from '../components/States';
 import ShareCard from '../components/ShareCard';
 import type { Post } from '../types';
 import '../styles/growth.css';
+import '../styles/safety.css';
 
 /**
  * Phase 8 — public landing page for a shared post. Anyone with the link
@@ -60,6 +61,14 @@ export default function PostPublic() {
                 <small>{new Date(post.created_at).toLocaleDateString()}</small>
               </div>
             </div>
+            {/* Phase 9 — self-reported safety & accessibility observations. */}
+            {(post.safety_tags || []).length > 0 && (
+              <ul className="safety-display" aria-label={t('safety.blockLabel')}>
+                {(post.safety_tags || []).map((tag) => (
+                  <li key={tag}>{t(`safety.tag.${tag}`)}</li>
+                ))}
+              </ul>
+            )}
             <ul className="post-public-stats">
               <li>
                 <Heart size={14} /> {post.like_count}
