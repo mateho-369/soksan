@@ -100,7 +100,10 @@ describe('business registration (Phase 3)', () => {
     await loginViaUI(user);
     renderAppAt('/business/dashboard');
 
-    await screen.findAllByText(/dara's riverside café/i);
+    // Two app instances stay mounted (login + dashboard) and each seam GET
+    // pays a 220ms simulated-latency wait, so the café can land just past
+    // the 1s default window under load. Use an explicit timeout.
+    await screen.findAllByText(/dara's riverside café/i, {}, { timeout: 6000 });
     expect(screen.getAllByText(/^verified$/i).length).toBeGreaterThan(0);
 
     // Two verified businesses may exist (seed + the one test 1 registered).

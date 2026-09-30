@@ -26,6 +26,7 @@ import PostViewer from '../components/PostViewer';
 import BoostModal from '../components/BoostModal';
 import TripPicker from '../components/trips/TripPicker';
 import CollectionPicker from '../components/collections/CollectionPicker';
+import ShareCard from '../components/ShareCard';
 import { isSavedOffline, removeOffline, saveOffline } from '../lib/offlineStore';
 import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
 import HiddenGemBanner from '../components/HiddenGemBanner';
@@ -56,6 +57,7 @@ export default function Home() {
   const [boostPost, setBoostPost] = useState<Post | null>(null);
   const [tripPickPost, setTripPickPost] = useState<Post | null>(null);
   const [collectPost, setCollectPost] = useState<Post | null>(null);
+  const [sharePost, setSharePost] = useState<Post | null>(null);
   // Bumped after toggling offline saves so the buttons re-read the store.
   const [offlineTick, setOfflineTick] = useState(0);
   const [viewerPostId, setViewerPostId] = useState<number | null>(null);
@@ -446,7 +448,16 @@ export default function Home() {
                         <button onClick={() => openViewer(post.id, true)}>
                           <MessageCircle /> {t('social.comment')}
                         </button>
-                        <button onClick={() => interact(post.id, 'share')}>
+                        <button
+                          onClick={() => {
+                            // Phase 8 — the branded postcard is a public
+                            // share action, so it always opens. The share
+                            // counter only increments for signed-in users
+                            // (interact is auth-gated server-side).
+                            setSharePost(post);
+                            if (user) void interact(post.id, 'share');
+                          }}
+                        >
                           <Send /> {t('social.share')}
                         </button>
                         {/* Phase 6 — save this place into a shareable trip. */}
@@ -516,6 +527,7 @@ export default function Home() {
       <BoostModal post={boostPost} onClose={() => setBoostPost(null)} onComplete={() => fetchFeed(false)} />
       {tripPickPost && <TripPicker post={tripPickPost} onClose={() => setTripPickPost(null)} />}
       {collectPost && <CollectionPicker post={collectPost} onClose={() => setCollectPost(null)} />}
+      {sharePost && <ShareCard post={sharePost} onClose={() => setSharePost(null)} />}
       <GemToast moment={gemMoment} onDismiss={dismissGem} />
     </div>
   );

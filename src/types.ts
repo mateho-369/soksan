@@ -434,4 +434,7 @@ export interface ContributorSummary {
   next_level: { floor: number; key: string; label: string } | null;
   badges: string[];
   formula: string;
+  /** Phase 8 — present only on /contributors/me (never on public reads). */
+  referral_code?: string;
+  referred_signups?: number;
 }

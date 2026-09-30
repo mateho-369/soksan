@@ -14,6 +14,7 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'name_kh' => $this->name_kh,
             'email' => $this->when($request->user()?->id === $this->id, $this->email),
+            'referral_code' => $this->when($request->user()?->id === $this->id, $this->referral_code),
             'avatar_url' => $this->avatar_url,
             'bio' => $this->bio,
             'verified' => $this->email_verified_at !== null,

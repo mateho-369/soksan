@@ -21,6 +21,7 @@ class User extends Authenticatable
         'avatar_url',
         'bio',
         'is_active',
+        'referred_by_user_id',
     ];
 
     protected $hidden = [

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../lib/http';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { Post } from '../types';
@@ -39,7 +40,7 @@ export default function HiddenGemBanner() {
   if (!gem) return null;
 
   return (
-    <div className="hidden-gem-banner" role="note">
+    <Link className="hidden-gem-banner" to={`/post/${gem.post.id}`}>
       <span className="gem-icon" aria-hidden>💎</span>
       <div>
         <strong>{t('social.hiddenGemTitle')}</strong>
@@ -48,6 +49,6 @@ export default function HiddenGemBanner() {
           {gem.note ? ` — ${gem.note}` : ''}
         </small>
       </div>
-    </div>
+    </Link>
   );
 }

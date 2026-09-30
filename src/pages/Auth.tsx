@@ -26,6 +26,12 @@ function AuthPage({ mode }: { mode: Mode }) {
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Phase 8 — badge-only referral. Invite links carry ?ref=CODE, which
+  // pre-fills the optional field; signup works exactly the same without it.
+  const [referral, setReferral] = useState(
+    () => new URLSearchParams(window.location.search).get('ref') || '',
+  );
+
   // Demo backend runs in the browser, so surface the seeded demo account.
   const demoMode = !import.meta.env?.VITE_API_BASE_URL;
 
@@ -48,7 +54,7 @@ function AuthPage({ mode }: { mode: Mode }) {
     setSubmitting(true);
     try {
       if (isLogin) await login(email.trim(), password);
-      else await register(name.trim(), email.trim(), password);
+      else await register(name.trim(), email.trim(), password, referral);
       navigate(destination, { replace: true });
     } catch (err) {
       setServerError(err instanceof Error ? err.message : t('auth.genericError'));
@@ -135,6 +141,20 @@ function AuthPage({ mode }: { mode: Mode }) {
                 aria-invalid={Boolean(fieldErrors.confirm)}
               />
               {fieldErrors.confirm && <em>{fieldErrors.confirm}</em>}
+            </label>
+          )}
+
+          {!isLogin && (
+            <label className="auth-field">
+              <span>{t('auth.referralLabel')}</span>
+              <input
+                type="text"
+                value={referral}
+                onChange={(event) => setReferral(event.target.value)}
+                placeholder={t('auth.referralPlaceholder')}
+                autoComplete="off"
+              />
+              <em className="auth-referral-note">{t('auth.referralNote')}</em>
             </label>
           )}
 

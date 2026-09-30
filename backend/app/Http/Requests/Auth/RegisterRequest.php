@@ -18,6 +18,8 @@ class RegisterRequest extends FormRequest
             'name' => ['required', 'string', 'min:2', 'max:80'],
             'email' => ['required', 'string', 'email', 'max:190', 'unique:users,email'],
             'password' => ['required', 'string', Password::min(8), 'confirmed'],
+            // Phase 8 — badge-only referral; unknown/absent codes are ignored.
+            'referral_code' => ['nullable', 'string', 'max:12'],
         ];
     }
 }

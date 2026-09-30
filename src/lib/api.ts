@@ -151,13 +151,26 @@ const contributorSummary = (userId: number) => {
   if (published.length >= 10) badges.push('prolific');
   if (likesReceived >= 100) badges.push('beloved');
   if (published.reduce((sum, p) => sum + p.share_count, 0) >= 50) badges.push('word_spreader');
+  // Phase 8 — badge-only referral reward.
+  const referredSignups = mockUsers.filter((u) => u.referred_by_user_id === userId).length;
+  if (referredSignups >= 1) badges.push('welcomer');
   return {
     quality_points: Math.round(points * 10) / 10,
     level: { floor: level.floor, key: level.key, label: level.label },
     next_level: next ? { floor: next.floor, key: next.key, label: next.label } : null,
     badges,
+    referred_signups: referredSignups,
     formula: CONTRIBUTOR_FORMULA,
   };
+};
+
+/** Stable unique 8-char invite code (mirrors ReferralService). */
+const referralCode = (): string => {
+  let code = '';
+  do {
+    code = (Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6)).toUpperCase();
+  } while (mockUsers.some((u) => u.referral_code === code));
+  return code;
 };
 
 /* ----------------------- collections (Phase 7) -------------------------- */
@@ -263,6 +276,9 @@ interface MockUser {
   password: string;
   avatar_url: string;
   role: 'user' | 'admin';
+  /** Phase 8 — badge-only referral: a stable code plus who invited you. */
+  referral_code: string;
+  referred_by_user_id: number | null;
 }
 
 const mockUsers: MockUser[] = [
@@ -274,6 +290,8 @@ const mockUsers: MockUser[] = [
     password: 'soksan123',
     avatar_url: '/images/traveler-dara.jpg',
     role: 'user',
+    referral_code: 'DARASOK3',
+    referred_by_user_id: null,
   },
   {
     // Phase 5: in-app admin behind role:admin.
@@ -284,6 +302,8 @@ const mockUsers: MockUser[] = [
     password: 'soksan123',
     avatar_url: '/images/traveler-dara.jpg',
     role: 'admin',
+    referral_code: 'SOKSADM4',
+    referred_by_user_id: null,
   },
 ];
 let nextUserId = 100;
@@ -542,6 +562,12 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     if (mockUsers.some((user) => user.email === email)) {
       return jsonResponse({ message: 'An account with this email already exists.' }, 422);
     }
+    // Phase 8 — badge-only referral: an unknown/absent invite code never
+    // blocks signup, it just isn't linked.
+    const referredBy = mockUsers.find(
+      (candidate) =>
+        candidate.referral_code === String(body?.referral_code || '').trim().toUpperCase(),
+    );
     const user: MockUser = {
       id: nextUserId++,
       name,
@@ -550,6 +576,8 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       password,
       avatar_url: '/images/traveler-dara.jpg',
       role: 'user',
+      referral_code: referralCode(),
+      referred_by_user_id: referredBy ? referredBy.id : null,
     };
     mockUsers.push(user);
     const token = `mock-token-${user.id}`;
@@ -695,8 +723,20 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     }
   }
 
+  /* Phase 8 — public single post (share-card / deep-link landing page).
+   * Mirrors backend GET /api/v1/posts/{post}: published only. */
+  if (path.startsWith('/api/posts/') && method === 'GET') {
+    const id = Number(path.slice('/api/posts/'.length));
+    if (!Number.isInteger(id) || path.slice('/api/posts/'.length).includes('/')) {
+      return jsonResponse({ error: 'Not found' }, 404);
+    }
+    const post = visiblePosts().find((p) => p.id === id);
+    if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+    return jsonResponse(clone(post));
+  }
 
-/* ---- Phase 1: geography + recency-decay rankings ------------------------
+
+  /* ---- Phase 1: geography + recency-decay rankings ------------------------
    Mirrors backend RankingService: score = (1 + likes + 2*comments + shares
    + views/100) * 0.5^(age_days / 21). Rolls up commune -> district ->
    province; national = provinces scope.                                      */
@@ -1338,7 +1378,8 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
   if (path === '/api/contributors/me' && method === 'GET') {
     const user = bearerUser(init);
     if (!user) return unauthorized();
-    return jsonResponse(contributorSummary(user.id));
+    // Only the owner sees their own invite code (mirrors UserResource).
+    return jsonResponse({ ...contributorSummary(user.id), referral_code: user.referral_code });
   }
 
   if (path === '/api/collections/mine' && method === 'GET') {

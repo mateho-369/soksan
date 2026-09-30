@@ -78,6 +78,18 @@ Nothing outside those three files imports from `src/demo/`.
   post 101, "Phsar Chas Noodle Corner"); merging happens exclusively via
   the admin-confirmed `/api/admin/places/merge` and writes an audit row —
   the merged place becomes hidden (`status = merged`).
+- Phase 8 growth: every account gets a stable 8-char invite code (seeded:
+  `DARASOK3` for dara@, `SOKSADM4` for admin@). Signup accepts an optional
+  `referral_code` — unknown/missing codes never block signup and never
+  link. A referred signup earns the referrer the `welcomer` badge ONLY:
+  no credits, discounts or ranking influence anywhere. The code is
+  exposed only to its owner (`/api/contributors/me` + `UserResource`
+  `when()` self-check). Sharing opens a branded postcard (`ShareCard` +
+  canvas PNG in `src/lib/sharePoster.ts`; copy-link always works, the PNG
+  is progressive enhancement) and counts `share_count` for signed-in
+  users. `GET /api/posts/{id}` serves published posts only and powers the
+  public `/post/{id}` share landing page; the Hidden Gem banner deep-links
+  there.
 
 ## Media sources (placeholders)
 

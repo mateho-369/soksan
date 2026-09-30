@@ -25,6 +25,7 @@ const TripPublic = lazy(() => import('./pages/TripPublic'));
 const OfflineLibrary = lazy(() => import('./pages/OfflineLibrary'));
 const Collections = lazy(() => import('./pages/Collections'));
 const CollectionPublic = lazy(() => import('./pages/CollectionPublic'));
+const PostPublic = lazy(() => import('./pages/PostPublic'));
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
                 <Route path="/trip/:slug" element={<TripPublic />} />
                 <Route path="/collections" element={<Collections />} />
                 <Route path="/collection/:slug" element={<CollectionPublic />} />
+                <Route path="/post/:id" element={<PostPublic />} />
                 <Route path="/offline" element={<OfflineLibrary />} />
                 <Route path="/business/register" element={<BusinessRegister />} />
                 <Route path="/business/dashboard" element={<BusinessDashboard />} />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Award, Sprout } from 'lucide-react';
+import { Award, Copy, Gift, Sprout } from 'lucide-react';
 import { apiFetch } from '../lib/http';
 import { useLanguage } from '../contexts/LanguageContext';
 import type { ContributorSummary } from '../types';
@@ -13,6 +13,19 @@ import '../styles/community.css';
 export default function ContributorCard() {
   const { t } = useLanguage();
   const [summary, setSummary] = useState<ContributorSummary | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const copyInvite = async () => {
+    if (!summary?.referral_code) return;
+    const invite = `${window.location.origin}/register?ref=${summary.referral_code}`;
+    try {
+      await navigator.clipboard.writeText(invite);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      /* clipboard unavailable — the code stays visible on the card */
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +82,20 @@ export default function ContributorCard() {
             <li key={badge}>{t(`contributor.badge.${badge}`)}</li>
           ))}
         </ul>
+      )}
+
+      {summary.referral_code && (
+        <div className="contributor-referral">
+          <Gift size={14} />
+          <div>
+            <strong>{t('contributor.referralTitle')}</strong>
+            <small>{t('contributor.referralHint')}</small>
+          </div>
+          <button type="button" onClick={() => void copyInvite()}>
+            {copiedCode ? t('share.copied') : `${summary.referral_code}`}
+            {!copiedCode && <Copy size={12} />}
+          </button>
+        </div>
       )}
 
       <small className="contributor-formula" title={t('contributor.formulaLabel')}>

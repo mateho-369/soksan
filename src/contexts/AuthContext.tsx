@@ -16,7 +16,7 @@ interface AuthContextValue {
   /** True while the stored session is being re-validated on first load. */
   initializing: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   /**
    * Gate for actions that require a session. Returns true when signed in;
@@ -70,16 +70,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await apiFetch('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({ name, email, password }),
-    });
-    if (!res.ok) throw new Error(await errorMessage(res, 'Could not create your account. Please try again.'));
-    const data = await res.json();
-    setToken(data.token);
-    setUser(data.user);
-  }, []);
+  const register = useCallback(
+    async (name: string, email: string, password: string, referralCode?: string) => {
+      const res = await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          // Phase 8 — badge-only referral; unknown codes are ignored.
+          referral_code: referralCode?.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res, 'Could not create your account. Please try again.'));
+      const data = await res.json();
+      setToken(data.token);
+      setUser(data.user);
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {

@@ -28,6 +28,10 @@ class ContributorService
         ['floor' => 1500, 'key' => 'ambassador',  'label' => 'Ambassador'],
     ];
 
+    public function __construct(private readonly ReferralService $referrals)
+    {
+    }
+
     public function qualityPoints(User $user): float
     {
         return Post::query()
@@ -90,6 +94,11 @@ class ContributorService
         if ($published->sum('share_count') >= 50) {
             $badges[] = 'word_spreader';
         }
+        // Phase 8 — badge-only referral: inviting a friend earns this and
+        // nothing else (no credits, no discounts, no ranking boost).
+        if ($this->referrals->referredCount($user) >= 1) {
+            $badges[] = 'welcomer';
+        }
 
         return $badges;
     }
@@ -104,6 +113,8 @@ class ContributorService
             'level' => $this->levelFor($points),
             'next_level' => $this->nextLevelFor($points),
             'badges' => $this->badges($user),
+            'referral_code' => $user->referral_code,
+            'referred_signups' => $this->referrals->referredCount($user),
             'formula' => 'points = likes*1 + comments*3 + shares*2 + views/50, over published posts',
         ];
     }

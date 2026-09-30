@@ -105,12 +105,12 @@ docker compose run --rm api php artisan test
 
 | Method   | Endpoint                     | Auth   | Notes                       |
 | -------- | ---------------------------- | ------ | --------------------------- |
-| POST     | `/api/v1/auth/register`      | —      | rate limit 5/min            |
+| POST     | `/api/v1/auth/register`      | —      | rate limit 5/min; optional `referral_code` links the invite (badge-only, unknown codes never block signup) |
 | POST     | `/api/v1/auth/login`         | —      | rate limit 5/min            |
 | POST     | `/api/v1/auth/logout`        | token  | revokes current token       |
 | GET      | `/api/v1/me`                 | token  |                             |
 | GET      | `/api/v1/posts`              | public | `category`, `province`, `search`, `page` (anonymous pages cached in Redis) |
-| GET      | `/api/v1/posts/{id}`         | public |                             |
+| GET      | `/api/v1/posts/{id}`         | public | published posts only — share-card / deep-link landing page (`/post/{id}`) |
 | POST     | `/api/v1/posts/{id}/view`    | public | clip view counter (Redis INCR) |
 | GET      | `/api/v1/leaderboard`        | public | province leaderboard (Redis ZSET) |
 | GET      | `/api/v1/rankings?scope=communes\|districts\|provinces` | public | geography rankings, recency decay (21-day half-life), rolls up commune → district → province |
@@ -132,7 +132,7 @@ docker compose run --rm api php artisan test
 | GET      | `/api/v1/collections` · `/api/v1/collections/{slug}` | public | browse/read community collections (published posts only inside) |
 | GET/POST/PATCH/DEL | `/api/v1/collections[/mine\|/{collection}]` | token/owner | collection CRUD; only owners mutate |
 | POST/DEL | `/api/v1/collections/{collection}/posts[/{post}]` | owner | collect/uncollect published posts |
-| GET      | `/api/v1/contributors/me` · `/api/v1/contributors/{user}` | token/public | live contributor level & badges — `points = likes*1 + comments*3 + shares*2 + views/50` over published posts (never stored, never touches ranking) |
+| GET      | `/api/v1/contributors/me` · `/api/v1/contributors/{user}` | token/public | live contributor level & badges — `points = likes*1 + comments*3 + shares*2 + views/50` over published posts (never stored, never touches ranking). `/me` also returns the caller's own `referral_code` + `referred_signups` (invite reward is the `welcomer` badge only — no credits, never ranking) |
 | GET      | `/api/v1/admin/places/duplicates`         | role:admin | candidate duplicate places (advisory only) |
 | POST     | `/api/v1/admin/places/merge`              | role:admin | merge a duplicate into its canonical place — ONLY via this admin-confirmed, audited endpoint |
 | GET      | `/api/v1/admin/posts/pending`             | role:admin | first-post queue (`posts.status = pending_review`) |

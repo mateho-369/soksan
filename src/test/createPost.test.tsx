@@ -18,8 +18,9 @@ describe('creating a post', () => {
     loginAsDemoUser();
     renderAppAt('/');
 
-    // Composer opens for an authenticated user.
-    await user.click(await screen.findByRole('button', { name: /share freely/i }));
+    // Composer opens for an authenticated user. (Generous timeout: under a
+    // full-suite parallel run the first hydrate can exceed the 1s default.)
+    await user.click(await screen.findByRole('button', { name: /share freely/i }, { timeout: 6000 }));
 
     await user.type(
       screen.getByPlaceholderText(/tell people what makes this place worth finding/i),
