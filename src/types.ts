@@ -266,6 +266,21 @@ export interface Partner {
   verified: boolean;
   active: boolean;
   monthly_fee: number;
+  /** Phase 4 — admin-managed visibility window (null end = open-ended). */
+  starts_at?: string | null;
+  ends_at?: string | null;
+}
+
+/** Phase 4 — lead tracking (call / message / directions). */
+export type LeadEventType = 'call' | 'message' | 'directions';
+
+export interface LeadSummary {
+  call: number;
+  message: number;
+  directions: number;
+  total: number;
+  from: string;
+  to: string;
 }
 
 export interface Profile {

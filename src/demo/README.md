@@ -47,6 +47,11 @@ Nothing outside those three files imports from `src/demo/`.
   exercisable. The demo auto-approves registrations and confirms KHQR
   payments instantly — production holds businesses `pending` for admin
   approval (Phase 5) and verifies payments against the Bakong API.
+- Phase 4 monetization: `lead_events.json` seeds call/message/directions
+  taps for the demo business (dates within 7 days of 2026-09-30). Partner
+  placements carry admin date ranges in `partners.json` (`starts_at` /
+  `ends_at`); the partner with the expired window is filtered out by the
+  demo seam exactly as `PartnerPlacementService::activeAt()` does.
 
 ## Media sources (placeholders)
 

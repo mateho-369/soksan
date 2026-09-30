@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BadgeCheck, Zap, Store, MapPin, Phone, CalendarCheck2, Sparkles } from 'lucide-react';
+import { BadgeCheck, Zap, Store, MapPin, Phone, CalendarCheck2, Sparkles, TrendingUp } from 'lucide-react';
 import { apiFetch } from '../lib/http';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LoadingState, ErrorState } from '../components/States';
 import BakongPayModal from '../components/business/BakongPayModal';
-import type { Business } from '../types';
+import type { Business, LeadSummary } from '../types';
 import '../styles/business.css';
 
 /**
@@ -21,6 +21,7 @@ export default function BusinessDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [upgrading, setUpgrading] = useState<Business | null>(null);
+  const [leadSummaries, setLeadSummaries] = useState<Record<number, LeadSummary>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,6 +36,30 @@ export default function BusinessDashboard() {
       setLoading(false);
     }
   }, []);
+
+  // Phase 4: 7-day lead summaries load in the background per business —
+  // they must never delay the dashboard itself.
+  useEffect(() => {
+    if (!businesses.length) return;
+    let cancelled = false;
+    void (async () => {
+      const summaries: Record<number, LeadSummary> = {};
+      await Promise.all(
+        businesses.map(async (business) => {
+          try {
+            const summaryRes = await apiFetch(`/businesses/leads/summary?business_id=${business.id}`);
+            if (summaryRes.ok) summaries[business.id] = await summaryRes.json();
+          } catch {
+            /* a missing summary is not fatal for the dashboard */
+          }
+        }),
+      );
+      if (!cancelled) setLeadSummaries(summaries);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [businesses]);
 
   useEffect(() => {
     if (user) void load();
@@ -130,13 +155,38 @@ export default function BusinessDashboard() {
 
           {business.description && <p className="business-description">{business.description}</p>}
 
+          {/* Phase 4 — lead tracking summary (last 7 days). */}
+          {leadSummaries[business.id] && (
+            <div className="business-leads">
+              <h3>
+                <TrendingUp size={15} /> {t('leads.title')}
+              </h3>
+              <div className="business-leads-grid">
+                <span>
+                  <strong>{leadSummaries[business.id].call}</strong> {t('leads.calls')}
+                </span>
+                <span>
+                  <strong>{leadSummaries[business.id].message}</strong> {t('leads.messages')}
+                </span>
+                <span>
+                  <strong>{leadSummaries[business.id].directions}</strong> {t('leads.directionsLabel')}
+                </span>
+                <span className="leads-total">
+                  <strong>{leadSummaries[business.id].total}</strong> {t('leads.total')}
+                </span>
+              </div>
+            </div>
+          )}
+
           <footer className="business-card-actions">
             {business.tier !== 'boosted' && (
               <button type="button" className="business-submit" onClick={() => setUpgrading(business)}>
                 <Sparkles size={15} /> {t('business.upgradeAction')}
               </button>
             )}
-            <span className="business-leads-soon">{t('business.leadsComingSoon')}</span>
+            <Link className="business-public-link" to={`/business/${business.id}`}>
+              {t('leads.viewPublicPage')}
+            </Link>
           </footer>
         </article>
       ))}

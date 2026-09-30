@@ -19,7 +19,8 @@ import rankingsSeed from '../demo/data/rankings.json';
 import geographySeed from '../demo/data/geography.json';
 import commentsSeed from '../demo/data/comments.json';
 import businessesSeed from '../demo/data/businesses.json';
-import type { Business, BusinessSubscription, KhqrInvoice } from '../types';
+import leadEventsSeed from '../demo/data/lead_events.json';
+import type { Business, BusinessSubscription, KhqrInvoice, LeadEventType } from '../types';
 import type {
   Post,
   Comment,
@@ -267,6 +268,29 @@ const buildKhqrPayload = (invoiceRef: string, amountUsd: number, merchant: strin
     amountUsd.toFixed(2),
     'USD',
   ].join('|');
+
+/* ------------------------------ leads (Phase 4) ------------------------- */
+// Call / Message / Directions taps on a business profile. Owners read the
+// 7-day summary; nothing here feeds ranking (ranking reads posts only).
+interface LeadEventRow {
+  id: number;
+  business_id: number;
+  event_type: LeadEventType;
+  created_at: string;
+}
+const leadEvents: LeadEventRow[] = clone(leadEventsSeed.events) as unknown as LeadEventRow[];
+let nextLeadEventId = 100;
+
+/** Admin date window check — mirrors PartnerPlacementService::activeAt(). */
+export const isPlacementActive = (
+  partner: Pick<Partner, 'active' | 'starts_at' | 'ends_at'>,
+  at: Date = new Date(),
+): boolean => {
+  if (!partner.active) return false;
+  if (partner.starts_at && new Date(partner.starts_at).getTime() > at.getTime()) return false;
+  if (partner.ends_at && new Date(partner.ends_at).getTime() <= at.getTime()) return false;
+  return true;
+};
 
 /* ------------------------------ helpers --------------------------------- */
 
@@ -755,6 +779,59 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     return jsonResponse(clone(attachSubscription(business)));
   }
 
+  /* ---- business public profile (Phase 4 lead surface) ---- */
+  if (path === '/api/businesses/profile' && method === 'GET') {
+    const id = Number(url.searchParams.get('id'));
+    const business = businesses.find((item) => item.id === id && item.status === 'approved');
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    return jsonResponse(clone(attachSubscription(business)));
+  }
+
+  /* ---- leads: call / message / directions (Phase 4) ---- */
+  if (path === '/api/businesses/leads' && method === 'POST') {
+    // Public: guests can tap Call/Directions without an account.
+    const business = businesses.find((item) => item.id === Number(body.business_id));
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    if (!['call', 'message', 'directions'].includes(body.event_type)) {
+      return jsonResponse({ error: 'event_type must be call, message or directions' }, 422);
+    }
+    const event: LeadEventRow = {
+      id: nextLeadEventId++,
+      business_id: business.id,
+      event_type: body.event_type as LeadEventType,
+      created_at: nowISO(),
+    };
+    leadEvents.push(event);
+    return jsonResponse({ ok: true, id: event.id }, 201);
+  }
+
+  if (path === '/api/businesses/leads/summary' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((item) => item.id === Number(url.searchParams.get('business_id')));
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    if (business.owner_id !== user.id) {
+      return jsonResponse({ error: 'Only the owner can see lead analytics' }, 403);
+    }
+    // Default window: last 7 days (mirrors backend LeadService::summarize).
+    const to = new Date();
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const inWindow = leadEvents.filter((event) => {
+      if (event.business_id !== business.id) return false;
+      const at = new Date(event.created_at).getTime();
+      return at >= from.getTime() && at <= to.getTime();
+    });
+    const count = (type: LeadEventType) => inWindow.filter((event) => event.event_type === type).length;
+    return jsonResponse({
+      call: count('call'),
+      message: count('message'),
+      directions: count('directions'),
+      total: inWindow.length,
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
+  }
+
   /* ---- conversations / messages ---- */
   if (path === '/api/conversations') {
     const filter = url.searchParams.get('filter') || 'all';
@@ -810,7 +887,10 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
   if (path === '/api/partners') {
     if (method === 'GET') {
       const type = url.searchParams.get('type');
-      const list = type ? partnersData.partners.filter((p) => p.partner_type === type) : partnersData.partners;
+      // Phase 4: partners are placements with an admin date window — expired
+      // or future placements never reach the public list.
+      let list = partnersData.partners.filter((p) => isPlacementActive(p));
+      if (type) list = list.filter((p) => p.partner_type === type);
       return jsonResponse({
         partners: clone(list),
         categories: clone(partnersData.categories),

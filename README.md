@@ -119,6 +119,9 @@ docker compose run --rm api php artisan test
 | POST     | `/api/v1/businesses`         | token  | register business (free Verified tier; production holds `pending` for admin approval) |
 | POST     | `/api/v1/businesses/{id}/upgrade`         | owner | open a Bakong KHQR invoice for the Boosted tier |
 | POST     | `/api/v1/businesses/{id}/upgrade/confirm` | owner | verify payment server-side, activate subscription |
+| POST     | `/api/v1/businesses/{id}/leads`           | public | log a lead event (`call` / `message` / `directions`) |
+| GET      | `/api/v1/businesses/{id}/leads/summary`   | owner/admin | 7-day lead totals, optional `from`/`to` range |
+| GET      | `/api/v1/placements/active`               | public | partner placements inside their admin date window (always labeled ដៃគូ/Partner; never affects ranking) |
 | POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin) |
 | PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
 | DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |

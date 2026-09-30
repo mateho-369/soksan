@@ -6,9 +6,11 @@ use App\Http\Controllers\Api\V1\BusinessBillingController;
 use App\Http\Controllers\Api\V1\BusinessController;
 use App\Http\Controllers\Api\V1\CommentController;
 use App\Http\Controllers\Api\V1\FollowController;
+use App\Http\Controllers\Api\V1\LeadController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\LikeController;
 use App\Http\Controllers\Api\V1\OpsController;
+use App\Http\Controllers\Api\V1\PartnerPlacementController;
 use App\Http\Controllers\Api\V1\PlaceController;
 use App\Http\Controllers\Api\V1\PostController;
 use App\Http\Controllers\Api\V1\RankingController;
@@ -35,6 +37,12 @@ Route::prefix('v1')->group(function () {
 
     // Clip view counter — public, cheap (Redis INCR, batch-flushed).
     Route::post('posts/{post}/view', [ViewController::class, 'store']);
+
+    // Phase 4 — lead events: public so guests can tap Call/Directions.
+    Route::post('businesses/{business}/leads', [LeadController::class, 'store']);
+
+    // Phase 4 — public partner placements inside their admin date window.
+    Route::get('placements/active', [PartnerPlacementController::class, 'active']);
 
     // Auth (heavily rate limited) -----------------------------------------
     Route::middleware('throttle:auth')->group(function () {
@@ -74,6 +82,10 @@ Route::prefix('v1')->group(function () {
         Route::post('businesses', [BusinessController::class, 'store']);
         Route::post('businesses/{business}/upgrade', [BusinessBillingController::class, 'upgrade']);
         Route::post('businesses/{business}/upgrade/confirm', [BusinessBillingController::class, 'confirm']);
+
+        // Phase 4 — lead analytics (owner/admin only; guests can still log
+        // lead events via the public route below).
+        Route::get('businesses/{business}/leads/summary', [LeadController::class, 'summary']);
 
         // Monitoring hooks for the scaling plan (queue depth, DB
         // connections, Redis liveness). Admin-only, never public.

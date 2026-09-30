@@ -199,6 +199,8 @@ export default function Partners() {
               <div className="partner-cover">
                 <img src={partner.cover_url} alt="" />
                 <span>{partner.partner_type.replace('-', ' ')}</span>
+                {/* Phase 4 rule: paid placements are ALWAYS labeled. */}
+                <span className="partner-paid-label">{t('leads.partnerLabel')}</span>
               </div>
               <div className="partner-card-body">
                 <img className="partner-avatar" src={partner.avatar_url} alt="" />

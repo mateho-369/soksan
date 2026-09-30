@@ -486,3 +486,143 @@
     gap: 2px;
   }
 }
+
+/* ── Phase 4: public business profile + lead actions ──────────────────── */
+
+.business-profile-name {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 1.4rem;
+  color: var(--night, #0c120e);
+}
+
+.business-profile-place {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  color: var(--muted, #748078);
+  font-size: 0.9rem;
+}
+
+.business-profile-map {
+  height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.business-lead-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.lead-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 30%, transparent);
+  background: var(--sage-pale, #e6efe6);
+  color: var(--sage-dark, #5f7d6a);
+  border-radius: var(--radius-pill, 999px);
+  padding: 10px 16px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.lead-button:hover,
+.lead-button:focus-visible {
+  border-color: var(--accent, #ff6b4a);
+  color: var(--accent-deep, #e8543a);
+}
+
+.lead-thanks {
+  margin: 6px 0 0;
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.business-profile-phone {
+  margin: 6px 0 0;
+  color: var(--muted, #748078);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.business-profile-back {
+  margin-top: 12px;
+}
+
+.business-profile-back a {
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 700;
+}
+
+/* ── Phase 4: dashboard lead summary ──────────────────────────────────── */
+
+.business-leads {
+  background: var(--sage-pale, #e6efe6);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.business-leads h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--sage-dark, #5f7d6a);
+}
+
+.business-leads-grid {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.business-leads-grid span {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--muted, #748078);
+}
+
+.business-leads-grid strong {
+  font-size: 1.15rem;
+  font-family: var(--font-display, inherit);
+  color: var(--night, #0c120e);
+}
+
+.business-leads-grid .leads-total strong {
+  color: var(--accent-deep, #e8543a);
+}
+
+.business-public-link {
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+/* ── Phase 4: mandatory partner placement label ───────────────────────── */
+
+.partner-paid-label {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgb(12 18 14 / 78%);
+  color: #fff;
+  border-radius: var(--radius-pill, 999px);
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  z-index: 2;
+}
