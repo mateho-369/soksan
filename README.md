@@ -109,50 +109,35 @@ docker compose run --rm api php artisan test
 | -------- | ---------------------------- | ------ | --------------------------- |
 | POST     | `/api/v1/auth/register`      | —      | rate limit 5/min; optional `referral_code` links the invite (badge-only, unknown codes never block signup) |
 | POST     | `/api/v1/auth/login`         | —      | rate limit 5/min            |
+| POST     | `/api/v1/auth/forgot-password` | —    | anti-enumeration response; 5/min |
+| POST     | `/api/v1/auth/reset-password`| —      | broker token; **revokes all sessions**; 5/min |
 | POST     | `/api/v1/auth/logout`        | token  | revokes current token       |
 | GET      | `/api/v1/me`                 | token  |                             |
-| GET      | `/api/v1/posts`              | public | `category`, `province`, `search`, `page` (anonymous pages cached in Redis) |
+| DELETE   | `/api/v1/me`                 | token  | account deletion — password-confirmed, anonymizes, revokes tokens |
+| POST     | `/api/v1/email/verification-notification` | token | resend signed verification link; 6/min |
+| GET      | `/api/v1/email/verify/{id}/{hash}` | signed | email verification    |
+| GET      | `/api/v1/posts`              | public | `category`, `province`, `search` (ILIKE/trigram on Postgres), `page` (anonymous pages cached in Redis) |
+| GET      | `/api/v1/posts/nearby`       | public | `lat`,`lng`,`radius_km` — PostGIS `ST_DWithin`, distance-sorted, coords rounded per privacy tier |
 | GET      | `/api/v1/posts/{id}`         | public | published posts only — share-card / deep-link landing page (`/post/{id}`) |
 | POST     | `/api/v1/posts/{id}/view`    | public | clip view counter (Redis INCR) |
 | GET      | `/api/v1/leaderboard`        | public | province leaderboard (Redis ZSET) |
 | GET      | `/api/v1/rankings?scope=communes\|districts\|provinces` | public | geography rankings, recency decay (21-day half-life), rolls up commune → district → province |
 | POST     | `/api/v1/places/confirm`     | token  | one-time Google Places confirmation (`place_id`) or manual pin (`lat`/`lng`) |
 | GET      | `/api/v1/businesses/mine`    | token  | owner dashboard: the caller's businesses + active subscription |
-| POST     | `/api/v1/businesses`         | token  | register business (free Verified tier; production holds `pending` for admin approval) |
-| POST     | `/api/v1/businesses/{id}/upgrade`         | owner | open a Bakong KHQR invoice for the Boosted tier |
-| POST     | `/api/v1/businesses/{id}/upgrade/confirm` | owner | verify payment server-side, activate subscription |
-| POST     | `/api/v1/businesses/{id}/leads`           | public | log a lead event (`call` / `message` / `directions`) |
-| GET      | `/api/v1/businesses/{id}/leads/summary`   | owner/admin | 7-day lead totals, optional `from`/`to` range |
-| GET      | `/api/v1/placements/active`               | public | partner placements inside their admin date window (always labeled ដៃគូ/Partner; never affects ranking) |
-| GET      | `/api/v1/hidden-gem/current`              | public | Hidden Gem of the Week (editorial admin pick; never score-derived) |
-| GET      | `/api/v1/trending`                        | public | Trending Now — engagement × 0.5^(age/3d) inside a 14-day window; read-only, never writes ranking state |
-| GET      | `/api/v1/trips/shared/{slug}`             | public | a shareable trip list (404 when private or missing) |
-| GET      | `/api/v1/trips/mine`                      | token  | the caller's trip lists |
-| POST     | `/api/v1/trips`                           | token  | create a trip list (auto slug) |
-| PATCH/DEL | `/api/v1/trips/{trip}`                   | owner  | rename / set privacy / delete a trip |
-| POST/DEL | `/api/v1/trips/{trip}/posts[/{post}]`     | owner  | add/remove stops — published posts only |
-| GET      | `/api/v1/collections` · `/api/v1/collections/{slug}` | public | browse/read community collections (published posts only inside) |
-| GET/POST/PATCH/DEL | `/api/v1/collections[/mine\|/{collection}]` | token/owner | collection CRUD; only owners mutate |
-| POST/DEL | `/api/v1/collections/{collection}/posts[/{post}]` | owner | collect/uncollect published posts |
-| GET      | `/api/v1/contributors/me` · `/api/v1/contributors/{user}` | token/public | live contributor level & badges — `points = likes*1 + comments*3 + shares*2 + views/50` over published posts (never stored, never touches ranking). `/me` also returns the caller's own `referral_code` + `referred_signups` (invite reward is the `welcomer` badge only — no credits, never ranking) |
-| GET      | `/api/v1/admin/places/duplicates`         | role:admin | candidate duplicate places (advisory only) |
-| POST     | `/api/v1/admin/places/merge`              | role:admin | merge a duplicate into its canonical place — ONLY via this admin-confirmed, audited endpoint |
-| GET      | `/api/v1/admin/posts/pending`             | role:admin | first-post queue (`posts.status = pending_review`) |
-| POST     | `/api/v1/admin/posts/{post}/approve\|reject` | role:admin | publish or reject a queued post (audited) |
-| GET      | `/api/v1/admin/businesses/pending`        | role:admin | business registrations awaiting review |
-| POST     | `/api/v1/admin/businesses/{business}/approve\|reject` | role:admin | approve or reject a business (audited) |
-| GET/POST/PATCH | `/api/v1/admin/placements`        | role:admin | schedule partner placements (date ranges + active toggle; audited) |
-| POST     | `/api/v1/admin/hidden-gem`                | role:admin | pick Hidden Gem of the Week (published posts only, one per ISO week; audited) |
-| GET      | `/api/v1/admin/audit-logs`                | role:admin | append-only log of every admin action |
-| POST     | `/api/v1/posts`              | token  | creates place + media refs (+ optional `latitude`/`longitude` pin, optional `safety_tags` from a closed allow-list); a new author's FIRST post is held as `pending_review` |
-| PATCH    | `/api/v1/posts/{id}`         | owner/admin |                        |
-| DELETE   | `/api/v1/posts/{id}`         | owner/admin |                        |
-| POST     | `/api/v1/uploads`            | token  | base64 media, allowlist + size limits |
-| GET/POST | `/api/v1/posts/{id}/comments`| public/token |                     |
+| POST     | `/api/v1/uploads`            | token  | 5/min; finfo MIME sniffing, SVG blocked, EXIF/GPS stripped via re-encode, videos queued |
+| GET/POST | `/api/v1/posts/{id}/comments`| public/token | comments 30/min; blocked pairs rejected |
 | DELETE   | `/api/v1/comments/{id}`      | owner/admin |                        |
 | POST/DEL | `/api/v1/posts/{id}/like`    | token  | toggle                      |
 | POST/DEL | `/api/v1/posts/{id}/bookmark`| token  | toggle ("save")             |
-| POST/DEL | `/api/v1/users/{id}/follow`  | token  | toggle                      |
+| POST/DEL | `/api/v1/users/{id}/follow`  | token  | toggle; blocked pairs rejected |
+| POST/DEL | `/api/v1/reports`            | token  | 10/min; closed reason list; one per reporter; auto-hide at 3 pending |
+| POST/DEL | `/api/v1/users/{id}/block`   | token  | bidirectional interaction stop |
+| POST/DEL | `/api/v1/users/{id}/mute`    | token  | hides author from muter's feed |
+| GET/POST | `/api/v1/notifications/*`    | token  | inbox, unread-count, mark read / read-all (local-only, no push provider) |
+| GET      | `/api/v1/admin/stats`        | admin  | dashboard counts snapshot   |
+| GET/PATCH| `/api/v1/admin/reports`      | admin  | review queue; decisions audited |
+| GET/PATCH/DEL | `/api/v1/admin/posts`   | admin  | status overrides + removal, audited |
+| GET/PATCH| `/api/v1/admin/users`        | admin  | activate/deactivate, role sync, audited |
 | GET      | `/api/v1/ops/health`         | admin  | app/DB/Redis liveness       |
 | GET      | `/api/v1/ops/metrics`        | admin  | queue depth, DB connections |
 
@@ -180,32 +165,59 @@ reachable from outside the stack.
   unreachable (`App\Services\RedisGate`). Full invalidation strategy and
   scaling plan: [docs/SCALING.md](docs/SCALING.md).
 
-## Security posture
+## Security posture (Phase 0 hardening)
 
-- **No tracking of any kind.** The design-export tool originally injected a
-  session recorder (rrweb + key capture), a page-view beacon to the design
-  tool's API, and an element-picker script into `index.html` — all three
-  were removed on 2026-09-29 along with their companion Vite plugin. The
-  app ships no analytics, no third-party scripts, no external beacons.
-- **Client hardening** in `index.html`: Content-Security-Policy (self-only
-  scripts/styles; media/images limited to the demo asset origins; no
-  objects, no external form targets), Permissions-Policy
-  (camera/geolocation/microphone/payment denied), strict referrer policy.
-  Dev note: `script-src 'unsafe-inline'` and `connect-src ws:` exist only
-  for the Vite dev server — tighten them behind your web server/CDN in
-  production (the bundle itself has no inline scripts).
-- **Response headers to set at the CDN/web server** (meta tags cannot set
-  them): `X-Frame-Options: DENY` (or CSP `frame-ancestors 'none'`),
-  `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`, and a
-  `Cache-Control: no-store` on `/api/v1` auth responses.
+- **No tracking of any kind.** No analytics, no third-party scripts, no
+  external beacons (the design-export rrweb recorder, page-view beacon and
+  element-picker were removed on 2026-09-29). Map tiles come from
+  OpenFreeMap (open OSM data) — tile fetches are rendering, not
+  analytics; disclosed in `docs/legal/privacy.md`.
+- **Mock API can never ship.** `src/lib/runtime.ts` throws on boot if
+  `VITE_USE_MOCK=true` reaches a production build; the seam is loaded via
+  dynamic import so it stays out of production bundles; CI greps
+  `.env.production` to refuse the flag.
+- **CSP, split by environment.** Dev keeps `unsafe-inline`/`ws:` for Vite
+  HMR only. Production serves a hardened policy (`script-src 'self'`, no
+  `ws:`) from three synced copies: the Vite build injects it into
+  `index.html`, `public/_headers` for static hosts, and
+  `deploy/nginx.conf.example`. Allowed third parties: OpenFreeMap tiles,
+  R2 storage, Google Fonts (disclosed in the privacy policy) — nothing
+  else.
+- **Security headers middleware** (`EnsureSecurityHeaders`, registered in
+  `bootstrap/app.php`): nosniff, frame DENY, strict referrer,
+  Permissions-Policy, HSTS in production, `Cache-Control: no-store` on
+  auth/password endpoints. Static-host headers covered by `_headers` +
+  nginx example — see `docs/DEPLOYMENT.md`.
+- **Uploads are not trusted.** `SafeMediaService` sniffs real MIME with
+  `finfo` (client MIME ignored), blocks SVG outright, re-encodes images
+  through GD (strips ALL EXIF/GPS metadata, caps 2560px, outputs
+  WebP/JPEG/PNG), and processes videos on the queue instead of inline.
+- **Location privacy by default.** Every geotagged post carries a
+  precision tier: exact / approximate (~110 m, the DEFAULT) / sensitive
+  (~1.1 km). Public responses round coordinates to the tier; only owner
+  and admins see raw points (`PostPolicy::viewExactLocation`); the raw
+  PostGIS geometry is never serialized. Composer exposes the choice in
+  EN + KH.
+- **Real moderation, not stubs.** Reports (closed 10-reason list, one per
+  reporter per item, withdrawable), blocks (bidirectional interaction
+  stop) and mutes (feed-only), auto-hide into the review queue at 3
+  pending reports, keyword + report screens in `ModeratePostJob`,
+  admin review endpoints with an audit log on every decision. SOP & SLAs:
+  `docs/OPERATIONS.md` §5.
+- **Full account lifecycle.** Password reset via the Laravel broker
+  (revokes ALL Sanctum tokens), signed-URL email verification,
+  password-confirmed account deletion (anonymize + revoke), per-action
+  rate limits — posts 10/min, social 30/min, uploads 5/min, reports
+  10/min, reset 5/min, verification 6/min, api 60/min, auth 5/min;
+  accounts younger than 48h get half the write budgets.
 - Sanctum bearer tokens (hashed at rest), bcrypt password hashing.
-- Rate limiting: 60/min general API, 5/min on credential endpoints.
 - CORS restricted to `FRONTEND_URL` (and later `ADMIN_FRONTEND_URL`).
-- All input validated server-side (FormRequests); JSON-only error responses,
-  no stack traces outside `APP_DEBUG`.
-- Upload validation: MIME allowlist, size caps, random filenames.
-- RBAC from day one: `roles` table + `role:` middleware + policies
-  (owner-or-admin) — the admin panel builds on this, not around it.
+- All input validated server-side (FormRequests); consistent error shape
+  `{message, errors}`; no stack traces outside `APP_DEBUG`.
+- RBAC from day one: `roles` table + `role:` middleware + policies —
+  the admin panel (built, Phase 5 + hardening) sits on top of it.
+- Structured production logging (`LOG_CHANNEL=json`), 14-day rotation,
+  no third-party sinks; policy: never log secrets or coordinates.
 
 ## Safety tags & auto-translate (Phase 9)
 
@@ -221,31 +233,38 @@ reachable from outside the stack.
   environment. App chrome is i18n'd (EN/KH); post content stays in the
   author's language.
 
-## Admin panel (next step — designed, not built)
+## Admin panel (built, in-app, behind `role:admin`)
 
-The backend is admin-ready without rewrites:
+The Phase 5 admin endpoints plus the Phase 0 trust-and-safety surface are
+live under `/api/v1/admin/*` (stats, report review queue, post
+status/removal, user status/role), every mutation audit-logged. A
+separate admin website can later authenticate against the same API —
+services and policies are already shared, no controller reuse required.
 
-1. New separate website authenticates against the **same** API.
-2. Add `/api/v1/admin/*` routes guarded by `role:admin`
-   (moderation queue via the existing `posts.status` column, user
-   management, campaign approval).
-3. Services and policies are already shared — no controller logic reuse
-   required.
+## Known limitations & verification status
 
-## Known limitations
-
-- The Laravel backend in this repo is written to Laravel 12 conventions but
-  must be exercised on a machine with Docker (this repo's CI sandbox has no
-  PHP). `docker compose up --build` + `php artisan test` is the verification
-  path.
+- **Backend tests:** the suite is designed to run WITHOUT Docker —
+  `phpunit.xml` pins SQLite `:memory:`, array cache/mail, sync queue, so
+  `cd backend && php artisan test` works on any PHP 8.3 machine. This
+  repo's sandbox has no PHP, so the backend suite is **UNVERIFIED here**;
+  the CI workflow (`.github/workflows/ci.yml`, pending GitHub
+  `workflows` permission for the session token) runs it on push.
+  PostGIS-only paths (nearby `ST_DWithin`, trigram indexes, geometry
+  columns) need the docker-compose Postgres for full exercise:
+  `docker compose up --build` then `docker compose run --rm api php
+  artisan test`.
 - Public maps render with MapLibre GL JS over free OpenFreeMap vector tiles
-  (no API key). The tile source is centralized in `src/lib/mapConfig.ts` so
-  the launch-region demo can swap to self-hosted PMTiles later without
-  touching any component. Google is never used for map rendering — only the
-  one-time business-registration confirm (`GOOGLE_PLACES_API_KEY`).
+  (no API key, mandatory OSM attribution in `SokSanMap`). The tile source
+  is centralized in `src/lib/mapConfig.ts` so the launch-region demo can
+  swap to self-hosted PMTiles later without touching any component.
+  Google is never used for map rendering — only the one-time
+  business-registration confirm (`GOOGLE_PLACES_API_KEY`).
+- Redis code paths are written with a graceful Postgres fallback
+  (`RedisGate`) but not executed in this repo's sandbox (no Docker/PHP);
+  `docker compose up` is the verification point.
 - The demo backend's data resets on reload (it is a demo, not storage).
 - All demo content is original, self-contained, and isolated in `src/demo/`
   — see `src/demo/README.md` for the one-step removal when the real API
   takes over completely.
-- Redis code paths are written but not executed in this repo's sandbox (no
-  Docker/PHP here); `docker compose up` is the verification point.
+- Email delivery needs a real mailer credential before verification and
+  reset links work outside tests (`MAIL_MAILER=array` in the test env).

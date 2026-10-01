@@ -29,6 +29,24 @@ Nearby search uses your queried point only to rank public posts; your own
 location is never stored or shared. You can edit or delete a post's
 location choice at any time.
 
+## External services (complete list) | សេវាកម្មខាងក្រៅ (បញ្ជីពេញលេញ)
+
+SokSan talks to exactly three external origins, all required for the app
+to render — none is tracking:
+
+1. **OpenFreeMap** (`tiles.openfreemap.org`) — public map tiles built
+   from OpenStreetMap. Requests carry no account identity; no API key,
+   no cookies, no registration. Attribution is shown on the map.
+2. **Google Fonts** (`fonts.googleapis.com` / `fonts.gstatic.com`) —
+   static font files for the Khmer (Hanuman) and Latin typefaces. We
+   self-host these fonts as a follow-up to remove even this dependency.
+3. **Cloudflare R2** — storage for media you upload (production only).
+
+សកសានប្រើសេវាកម្មខាងក្រៅតែ ៣ ប៉ុណ្ណោះ — ទាំងអស់ចាំបាច់សម្រាប់
+បង្ហាញកម្មវិធី មិនមែនការតាមដានទេ៖ ផែនទីបើកចំហ (OpenFreeMap) អក្សរ
+ពុម្ពអក្សរ (Google Fonts — នឹងរក្សាទុកក្នុងម៉ាស៊ីនខ្លួនឯងនាពេលអនាគត)
+និងកន្លែងរក្សាទុករូបភាព (Cloudflare R2)។
+
 ## What we refuse | អ្វីដែលយើងមិនធ្វើ
 
 - **No tracking, no analytics, no advertising networks.** No cookies used
