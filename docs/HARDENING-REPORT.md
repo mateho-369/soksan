@@ -71,14 +71,19 @@ the CI workflow itself (push-based; needs GitHub runners).
 
 ## Remaining risks / known gaps
 
-1. **Backend suite unverified** in this sandbox — first CI run may need
+1. **`.github/workflows/ci.yml` is written but NOT yet pushed** — the
+   GitHub App token for this session lacks the `workflows` permission, so
+   GitHub rejects the push. The file is ready in the workspace; push it as
+   a follow-up commit once the permission is granted (nothing else is
+   blocked by it).
+2. **Backend suite unverified** in this sandbox — first CI run may need
    small fixes (e.g. factory state for notification assertions).
-2. Rate-limit tests for `<48h` budgets are not automated (manual check).
-3. Legal pages are markdown; wiring them as in-app routes is a small
+3. Rate-limit tests for `<48h` budgets are not automated (manual check).
+4. Legal pages are markdown; wiring them as in-app routes is a small
    follow-up (footer links currently point to the docs).
-4. Email delivery needs a real SMTP/SES credential before verification &
+5. Email delivery needs a real SMTP/SES credential before verification &
    reset links work outside tests (`MAIL_MAILER=array` in tests).
-5. PostGIS path of `/posts/nearby` is exercised only on production
+6. PostGIS path of `/posts/nearby` is exercised only on production
    Postgres (SQLite runs the haversine fallback).
 
 ## Suggested next PRs
