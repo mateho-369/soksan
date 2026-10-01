@@ -19,8 +19,8 @@ export const PRODUCTION_CSP = [
   "script-src 'self'",
   // MapLibre injects style elements at runtime; no other inline styles are
   // required by the app itself.
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
   // Demo media (picsum/Google sample bucket) plus Cloudflare R2 media.
   "img-src 'self' data: blob: https://picsum.photos https://*.picsum.photos https://commondatastorage.googleapis.com https://*.r2.cloudflarestorage.com",
   "media-src 'self' blob: https://commondatastorage.googleapis.com https://*.r2.cloudflarestorage.com",

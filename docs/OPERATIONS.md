@@ -124,7 +124,40 @@ reports 10/min, password-reset 5/min, verification 6/min. Accounts younger
 than 48h get half the write budgets. 429 responses include
 `Retry-After` via Laravel's throttle middleware.
 
-## 8. Routine checks
+## 8. Pre-launch production dry-run
+
+Run through this list on the real environment before opening public beta:
+
+```env
+APP_ENV=production
+APP_DEBUG=false              # never leak stack traces
+VITE_USE_MOCK=false          # the runtime guard throws if this is "true"
+VITE_API_BASE_URL=/api/v1    # same-origin proxy (see docs/DEPLOYMENT.md)
+MEDIA_DISK=r2                # SafeMediaService output goes to R2
+```
+
+- [ ] `cd backend && php artisan test` passes on PHP 8.3 (no Docker
+      needed for the suite; PostGIS paths additionally via docker compose).
+- [ ] `php artisan migrate --force` clean on the production Postgres 16
+      with PostGIS enabled (`select postgis_version();`).
+- [ ] CORS allowed origins = frontend origin only.
+- [ ] Sanctum stateless API tokens; `personal_access_tokens` table present.
+- [ ] Queue worker running (`queue:work`) — uploads, moderation and
+      notifications depend on it; confirm `supervisorctl status` / Docker.
+- [ ] Redis reachable from the app only (private network, no published
+      port) — or confirm `RedisGate` fallback by stopping Redis and
+      loading the feed.
+- [ ] R2 credentials in env (not committed); bucket CORS allows the
+      frontend origin; test an upload end-to-end (EXIF check: upload a
+      photo with GPS tags, download it back, verify tags are gone).
+- [ ] Edge headers live: fetch the site and confirm the hardened CSP,
+      HSTS, nosniff, frame-ancestors come back (curl -I).
+- [ ] Real mailer configured (SMTP/SES) — send a password-reset email.
+- [ ] Frontend build contains no `fonts.googleapis.com` and no
+      `VITE_USE_MOCK=true` (CI asserts both).
+- [ ] Never commit the real `.env`.
+
+## 9. Routine checks
 
 Daily: ops/health green, report queue age < SLA, disk < 70%.
 Weekly: review audit log sample, failed-login spikes, R2 storage growth.

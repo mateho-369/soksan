@@ -2,6 +2,20 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { assertProductionRuntime, shouldUseMock } from './lib/runtime';
 import App from './App';
+/* Phase 2/3 hardening — self-hosted fonts (Fontsource ships the same
+ * families as woff2 with unicode-range subsets). No third-party font
+ * requests: keeps the "no external origins" privacy claim intact and
+ * lets CSP drop fonts.googleapis.com / fonts.gstatic.com entirely. */
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource/manrope/400.css';
+import '@fontsource/manrope/500.css';
+import '@fontsource/manrope/600.css';
+import '@fontsource/manrope/700.css';
+import '@fontsource/hanuman/300.css';
+import '@fontsource/hanuman/400.css';
+import '@fontsource/hanuman/500.css';
+import '@fontsource/hanuman/600.css';
+import '@fontsource/hanuman/700.css';
 import './index.css';
 
 /*

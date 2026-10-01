@@ -92,3 +92,17 @@ the CI workflow itself (push-based; needs GitHub runners).
 - Real S3/R2 media disk wiring + signed upload URLs.
 - E2E smoke (Playwright) against docker-compose with real Postgres/PostGIS.
 - Admin dashboard UI consuming `/admin/stats` + report queue.
+
+## Update — fonts self-hosted (closes the last third-party origin)
+
+Per release review, Google Fonts was replaced with **Fontsource
+self-hosted woff2** (`@fontsource/manrope`, `@fontsource/hanuman` incl.
+the Khmer subset, `@fontsource-variable/bricolage-grotesque`). The Google
+domains were removed from all four CSP copies (vite plugin, `index.html`
+meta, `public/_headers`, nginx example); the production bundle serves 33
+woff2 files same-origin and `dist/` contains zero Google references.
+The external-origins list in `docs/legal/privacy.md` is now OpenFreeMap
+tiles + R2 storage only. Frontend gates re-run green after the swap
+(tsc/eslint clean, 133/133 vitest, build OK).
+
+Pre-launch environment dry-run checklist added to `docs/OPERATIONS.md` §8.

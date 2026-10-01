@@ -31,21 +31,22 @@ location choice at any time.
 
 ## External services (complete list) | សេវាកម្មខាងក្រៅ (បញ្ជីពេញលេញ)
 
-SokSan talks to exactly three external origins, all required for the app
+SokSan talks to exactly two external origins, both required for the app
 to render — none is tracking:
 
 1. **OpenFreeMap** (`tiles.openfreemap.org`) — public map tiles built
    from OpenStreetMap. Requests carry no account identity; no API key,
    no cookies, no registration. Attribution is shown on the map.
-2. **Google Fonts** (`fonts.googleapis.com` / `fonts.gstatic.com`) —
-   static font files for the Khmer (Hanuman) and Latin typefaces. We
-   self-host these fonts as a follow-up to remove even this dependency.
-3. **Cloudflare R2** — storage for media you upload (production only).
+2. **Cloudflare R2** — storage for media you upload (production only).
 
-សកសានប្រើសេវាកម្មខាងក្រៅតែ ៣ ប៉ុណ្ណោះ — ទាំងអស់ចាំបាច់សម្រាប់
-បង្ហាញកម្មវិធី មិនមែនការតាមដានទេ៖ ផែនទីបើកចំហ (OpenFreeMap) អក្សរ
-ពុម្ពអក្សរ (Google Fonts — នឹងរក្សាទុកក្នុងម៉ាស៊ីនខ្លួនឯងនាពេលអនាគត)
-និងកន្លែងរក្សាទុករូបភាព (Cloudflare R2)។
+**Fonts are self-hosted** (Bricolage Grotesque, Manrope and the Khmer
+typeface Hanuman ship from our own origin as woff2). There are no
+requests to Google, no font CDNs, and no other third-party origins.
+
+សកសានប្រើសេវាកម្មខាងក្រៅតែ ២ ប៉ុណ្ណោះ — ផែនទីបើកចំហ
+(OpenFreeMap) និងកន្លែងរក្សាទុកមេឌា (Cloudflare R2)។ ពុម្ពអក្សរ
+(រួមទាំងអក្សរខ្មែរ Hanuman) រក្សាទុកក្នុងម៉ាស៊ីនរបស់យើងផ្ទាល់ —
+គ្មានការស្នើសុំទៅកាន់ភាគីទីបីណាមួយឡើយ។
 
 ## What we refuse | អ្វីដែលយើងមិនធ្វើ
 

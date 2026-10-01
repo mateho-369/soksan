@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanuman:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap");
+/* Fonts are self-hosted via Fontsource (imported in src/main.tsx). */
 @import "tailwindcss";
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -28,7 +28,7 @@
 
   /* Type */
   --font-body:Manrope,sans-serif;
-  --font-display:"Bricolage Grotesque",Manrope,"Hanuman",sans-serif;
+  --font-display:"Bricolage Grotesque Variable","Bricolage Grotesque",Manrope,"Hanuman",sans-serif;
   --font-khmer:"Hanuman",sans-serif;
 
   /* Motion (springs tuned to match the presets in src/ui/motion.ts) */
