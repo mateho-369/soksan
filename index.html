@@ -24,22 +24,23 @@
          All three are deleted (2026-09-29). There is now NO analytics,
          NO third-party script, and NO external beacon in this app.
 
-      2. CSP notes:
-         - script-src keeps 'unsafe-inline' ONLY because the Vite dev
-           server injects an inline React-Refresh preamble. The production
-           bundle contains no inline scripts, so behind your web
-           server/CDN you can tighten it to 'self' (ideally with nonces).
-         - connect-src allows ws:/wss: for the dev server's HMR socket;
-           production can drop those.
-         - frame-ancestors, X-Frame-Options and X-Content-Type-Options
-           cannot be set from meta tags — enforce them at the web
-           server/CDN (see README → Security posture).
+      2. CSP notes (Phase 0 hardening):
+         - The CSP meta tag below is the DEVELOPMENT policy: script-src
+           keeps 'unsafe-inline' for the Vite dev server's React-Refresh
+           preamble and connect-src allows ws:/wss: for HMR.
+         - At `vite build` time, vite.config.ts (productionCspPlugin) swaps
+           it for the hardened PRODUCTION CSP: script-src 'self' only, no
+           ws:, tile/R2/media domains allow-listed. frame-ancestors is set
+           via public/_headers + deploy/nginx.conf.example (meta tags
+           cannot express it).
+         - X-Frame-Options, X-Content-Type-Options and HSTS are enforced
+           at the web server/CDN (see docs/DEPLOYMENT.md).
     -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://picsum.photos https://*.picsum.photos; media-src 'self' blob: https://commondatastorage.googleapis.com; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
     />
-    <meta http-equiv="Permissions-Policy" content="camera=(), geolocation=(), microphone=(), payment=()" />
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(self), payment=()" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
   </head>
   <body>

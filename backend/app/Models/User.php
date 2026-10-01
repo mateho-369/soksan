@@ -88,4 +88,15 @@ class User extends Authenticatable
         $role = Role::firstOrCreate(['name' => $name], ['display_name' => ucfirst($name)]);
         $this->roles()->syncWithoutDetaching([$role->id]);
     }
+
+    /** Replace the user's roles with exactly the given set (admin tool). */
+    public function syncRoles(array $names): void
+    {
+        $ids = collect($names)->map(function (string $name) {
+            return Role::firstOrCreate(['name' => $name], ['display_name' => ucfirst($name)])->id;
+        })->all();
+
+        $this->roles()->sync($ids);
+        $this->unsetRelation('roles');
+    }
 }

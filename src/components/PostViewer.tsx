@@ -25,6 +25,7 @@ import '../styles/safety.css';
 import { LoadingState } from './States';
 import LikeButton from '../ui/LikeButton';
 import AnimatedNumber from '../ui/AnimatedNumber';
+import { ReportDialog } from './ReportDialog';
 import type { Post, Comment, CommentAsset, MediaItem } from '../types';
 
 interface PostViewerProps {
@@ -56,6 +57,8 @@ export default function PostViewer({
   const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
+  // Phase 0 hardening — report/block/mute dialog lives behind the ⋯ action.
+  const [reportOpen, setReportOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deviceLandscape, setDeviceLandscape] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -433,12 +436,14 @@ export default function PostViewer({
               <AnimatedNumber value={post.share_count} />
             </b>
           </button>
-          <button>
+          <button onClick={() => setReportOpen(true)} aria-label={t('moderation.moreActions')}>
             <span>
               <Ellipsis />
             </span>
           </button>
         </div>
+
+        {reportOpen && <ReportDialog post={post} onClose={() => setReportOpen(false)} />}
 
         {commentsOpen && (
           <button className="comment-drawer-backdrop" onClick={() => setCommentsOpen(false)} aria-label="Close comments" />

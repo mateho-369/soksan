@@ -49,6 +49,9 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
   // Phase 2 map: optional manual pin (regular users without a Places match).
   const [pin, setPin] = useState<LatLng | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Phase 0 hardening — location privacy. Default is the SAFER approximate
+  // area; exact public coordinates are an explicit choice.
+  const [locationChoice, setLocationChoice] = useState<'approximate' | 'exact' | 'sensitive'>('approximate');
   const pickerCenter = useMemo<[number, number] | undefined>(() => {
     const commune = (geography?.communes || []).find((item) => item.id === Number(communeId));
     if (commune?.latitude != null && commune?.longitude != null) return [commune.longitude, commune.latitude];
@@ -217,6 +220,11 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           // Optional manual pin — matches the backend StorePostRequest.
           latitude: pin ? pin.lat : null,
           longitude: pin ? pin.lng : null,
+          // Phase 0 hardening — location privacy choice (approximate is the
+          // default; exact is an explicit opt-in; sensitive caps public
+          // precision to ~1.1km).
+          location_precision: locationChoice === 'exact' ? 6 : locationChoice === 'sensitive' ? 2 : 3,
+          is_sensitive_location: locationChoice === 'sensitive',
           // Phase 9 — optional safety & accessibility observations.
           safety_tags: safetyTags,
           media: uploaded,
@@ -227,6 +235,7 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
       setProgress(100);
       setPin(null);
       setSafetyTags([]);
+      setLocationChoice('approximate');
       mediaFiles.forEach((item) => URL.revokeObjectURL(item.preview));
       setMediaFiles([]);
       setCaption('');
@@ -375,6 +384,25 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
                   </button>
                 </span>
               )}
+            </div>
+            {/* Phase 0 hardening — location privacy choice (EN + KH). */}
+            <div className="safety-block" role="radiogroup" aria-label={t('locationPrivacy.title')}>
+              <span className="safety-block-label">{t('locationPrivacy.title')}</span>
+              <div className="safety-chips">
+                {(['approximate', 'exact', 'sensitive'] as const).map((choice) => (
+                  <button
+                    key={choice}
+                    type="button"
+                    role="radio"
+                    aria-checked={locationChoice === choice}
+                    className={`safety-chip${locationChoice === choice ? ' on' : ''}`}
+                    onClick={() => setLocationChoice(choice)}
+                  >
+                    {t(`locationPrivacy.${choice}`)}
+                  </button>
+                ))}
+              </div>
+              <p className="safety-note">{t(`locationPrivacy.hint.${locationChoice}`)}</p>
             </div>
             <select
               value={category}

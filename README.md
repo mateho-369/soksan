@@ -92,6 +92,8 @@ docker compose run --rm api php artisan test
 │   ├── pages/                # Home, Discover, Clips, Auth, …
 │   ├── components/           # feed, composer, viewer, layout, map/
 │   └── test/                 # Vitest suites (critical flows)
+├── docs/                     # DEPLOYMENT, SCALING, OPERATIONS
+│   └── legal/                # Privacy, ToS, Guidelines, Copyright, Abuse (EN+KH)
 └── backend/                  # Laravel 12 REST API
     ├── routes/api.php        # versioned endpoints (/api/v1/…)
     ├── app/Http/…            # thin controllers, requests, resources

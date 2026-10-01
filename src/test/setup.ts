@@ -1,6 +1,13 @@
 import '@testing-library/jest-dom/vitest';
+import { configure } from '@testing-library/react';
 import { beforeEach, vi } from 'vitest';
 import { installApi } from '../lib/api';
+
+// Full-suite runs execute many jsdom workers in parallel; the 1s default
+// for findBy*/waitFor is too tight under that load (the demo seam also adds
+// a small simulated latency per request). 4s absorbs the spikes without
+// hiding real failures.
+configure({ asyncUtilTimeout: 4000 });
 
 // jsdom lacks a few browser APIs the app touches; provide minimal stubs
 // so components run exactly as they do in a browser.

@@ -18,6 +18,8 @@
       "family_friendly",
       "well_lit"
     ],
+    "location_precision": 6,
+    "is_sensitive_location": false,
     "is_liked": false,
     "is_saved": false,
     "business_name": null,
@@ -140,6 +142,8 @@
       "solo_friendly",
       "quiet_space"
     ],
+    "location_precision": 4,
+    "is_sensitive_location": true,
     "is_liked": false,
     "is_saved": false,
     "business_name": "Srae Thom Homestay",

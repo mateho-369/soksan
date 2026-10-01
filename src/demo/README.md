@@ -90,6 +90,15 @@ Nothing outside those three files imports from `src/demo/`.
   users. `GET /api/posts/{id}` serves published posts only and powers the
   public `/post/{id}` share landing page; the Hidden Gem banner deep-links
   there.
+- Phase 0 hardening — location privacy: exact coordinates are sensitive.
+  The seam mirrors `PostResource`/`PostPolicy`: public viewers receive
+  lat/lng rounded to the post's `location_precision` (4 ≈ 11m, 3 ≈ 110m,
+  2 ≈ 1.1km; sensitive posts cap at 2); owner and admin (`role`) see the
+  exact point and `has_exact_location: true`. New posts default to
+  approximate (precision 3); the composer offers Approximate / Exact /
+  Sensitive with EN+KH hints. Applied on the feed, single post, trending,
+  hidden gem, trips and collections responses. Demo seeds: post 1 exact
+  (precision 6), post 3 sensitive.
 - Phase 9 safety: posts carry optional self-reported `safety_tags` from a
   CLOSED allow-list (`src/lib/safetyTags.ts`, mirrored by
   `SafetyTagService` in the backend): well-lit, security on site,

@@ -90,6 +90,11 @@ export interface Post {
   status?: string;
   /** Phase 9 — self-reported safety & accessibility tags (closed allow-list). */
   safety_tags?: string[];
+  /** Phase 0 hardening — location privacy. Public decimal precision
+   *  (4 ≈ 11m, 3 ≈ 110m, 2 ≈ 1.1km); exact coords are owner/admin only. */
+  location_precision?: number;
+  is_sensitive_location?: boolean;
+  has_exact_location?: boolean;
   is_liked: boolean;
   is_saved?: boolean;
   business_name: string | null;

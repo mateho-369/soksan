@@ -50,6 +50,108 @@ const ads = clone(adsSeed);
  */
 const visiblePosts = (): Post[] => posts.filter((p) => !p.status || p.status === 'published');
 
+/* ---------- Phase 0 hardening: location privacy (mirrors PostResource) ----
+ * Exact coordinates are sensitive. Public viewers get lat/lng rounded to the
+ * post's location_precision (4 ≈ 11m, 3 ≈ 110m, 2 ≈ 1.1km); the owner and
+ * admins see the exact point (PostPolicy::viewExactLocation). Sensitive
+ * posts are capped at 2 decimals. This is demo behaviour that the Laravel
+ * PostResource enforces for real.
+ */
+function roundCoord(value: number | null | undefined, precision: number): number | null {
+  if (value === null || value === undefined) return null;
+  return Number(value.toFixed(precision));
+}
+
+function publicPrecision(post: Post): number {
+  const precision = typeof post.location_precision === 'number' ? post.location_precision : 4;
+  return post.is_sensitive_location ? Math.min(precision, 2) : precision;
+}
+
+function withLocationPrivacy<T extends Post>(post: T, viewer: MockUser | null): T {
+  const isOwnerOrAdmin = viewer !== null && (viewer.id === post.profile_id || viewer.role === 'admin');
+  if (isOwnerOrAdmin) {
+    return { ...post, has_exact_location: post.lat !== null && post.lat !== undefined };
+  }
+  const precision = publicPrecision(post);
+  return {
+    ...post,
+    lat: roundCoord(post.lat, precision),
+    lng: roundCoord(post.lng, precision),
+    has_exact_location: false,
+  };
+}
+
+/* ---------- Phase 0 hardening: reports, blocks, mutes ------------------
+ * Mirrors ReportService/SafetyRelationService + config/moderation.php.
+ * Auto-hide is reversible: admins can re-publish from the queue. */
+const REPORT_REASONS = [
+  'spam',
+  'nudity',
+  'violence',
+  'scam',
+  'private_location',
+  'harassment',
+  'illegal',
+  'copyright',
+  'fake_place',
+  'other',
+] as const;
+const AUTO_HIDE_REPORTS = 3;
+
+interface ReportRow {
+  id: number;
+  reporter_id: number;
+  reportable_type: 'post' | 'comment';
+  reportable_id: number;
+  reason: string;
+  details: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'dismissed';
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+interface BlockRow {
+  id: number;
+  user_id: number;
+  blocked_user_id: number;
+}
+
+interface MuteRow {
+  id: number;
+  user_id: number;
+  muted_user_id: number;
+  muted_until: string | null;
+}
+
+const reportRows: ReportRow[] = [];
+const blockRows: BlockRow[] = [];
+const muteRows: MuteRow[] = [];
+let nextReportId = 1;
+let nextBlockId = 1;
+let nextMuteId = 1;
+
+const blockedBetween = (a: number, b: number): boolean =>
+  blockRows.some((r) => (r.user_id === a && r.blocked_user_id === b) || (r.user_id === b && r.blocked_user_id === a));
+
+const mutedIdsFor = (userId: number): number[] =>
+  muteRows
+    .filter((m) => m.user_id === userId && (!m.muted_until || new Date(m.muted_until) > new Date()))
+    .map((m) => m.muted_user_id);
+
+/** Threshold guard: heavily-reported posts are pulled into the queue. */
+const maybeAutoHidePost = (postId: number): void => {
+  const pending = reportRows.filter(
+    (r) => r.reportable_type === 'post' && r.reportable_id === postId && r.status === 'pending',
+  ).length;
+  if (pending < AUTO_HIDE_REPORTS) return;
+  const post = posts.find((p) => p.id === postId);
+  if (post && (!post.status || post.status === 'published')) {
+    post.status = 'pending_review';
+    recordAudit({ id: 0, name: 'system', role: 'admin' } as MockUser, 'post.auto_hide', `post ${postId}`);
+  }
+};
+
 /* ------------------------- admin state (Phase 5) ------------------------ */
 interface AuditLogRow {
   id: number;
@@ -71,6 +173,46 @@ const recordAudit = (user: MockUser, action: string, subject: string) => {
     created_at: nowISO(),
   });
 };
+/* ---------- Phase 1 (2.5): in-app notifications -------------------------
+ * Mirrors NotificationService: likes, comments, review outcomes and report
+ * decisions. Local-only — no third-party push provider, no tracking. */
+interface SeamNotification {
+  id: number;
+  user_id: number;
+  type: 'like' | 'comment' | 'post_approved' | 'post_rejected' | 'report_reviewed';
+  actor_id: number | null;
+  message_en: string;
+  message_kh: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+}
+
+const seamNotifications: SeamNotification[] = [];
+let nextNotificationId = 1;
+
+const notifyUser = (
+  toId: number,
+  type: SeamNotification['type'],
+  messageEn: string,
+  messageKh: string,
+  actorId: number | null,
+): void => {
+  // No "you did this to yourself" noise.
+  if (actorId !== null && actorId === toId) return;
+  seamNotifications.unshift({
+    id: nextNotificationId++,
+    user_id: toId,
+    type,
+    actor_id: actorId,
+    message_en: messageEn,
+    message_kh: messageKh,
+    is_read: false,
+    read_at: null,
+    created_at: nowISO(),
+  });
+};
+
 /** Hidden Gem of the Week — editorial pick, never ranking. */
 let currentHiddenGem: { post_id: number; note: string; picked_by: string; week_start: string } | null = null;
 
@@ -203,12 +345,13 @@ const collectionPayload = (collection: CollectionRow) => {
     owner: owner ? publicUser(owner) : null,
   };
 };
-const collectionDetail = (collection: CollectionRow) => ({
+const collectionDetail = (collection: CollectionRow, viewer: MockUser | null = null) => ({
   ...collectionPayload(collection),
   items: collection.post_ids
     .map((id) => visiblePosts().find((p) => p.id === id))
     .filter((p): p is Post => Boolean(p))
-    .map((post, index) => ({ id: post.id, sort_order: index + 1, post: clone(post) })),
+    // Phase 0 hardening — public viewers get rounded coordinates.
+    .map((post, index) => ({ id: post.id, sort_order: index + 1, post: withLocationPrivacy(clone(post), viewer) })),
 });
 
 /* ------------------ duplicate-place detection (Phase 7) ----------------- */
@@ -280,6 +423,8 @@ interface MockUser {
   /** Phase 8 — badge-only referral: a stable code plus who invited you. */
   referral_code: string;
   referred_by_user_id: number | null;
+  /** Phase 0 hardening — anonymized accounts can no longer sign in. */
+  is_active?: boolean;
 }
 
 const mockUsers: MockUser[] = [
@@ -309,6 +454,12 @@ const mockUsers: MockUser[] = [
 ];
 let nextUserId = 100;
 
+// Phase 0 hardening — account lifecycle: revoked bearer tokens, pending
+// password-reset codes and per-user verification flags live only in memory.
+const revokedTokens = new Set<string>();
+const resetCodes = new Map<string, string>();
+const emailVerified = new Set<number>();
+
 const publicUser = (user: MockUser) => ({
   id: user.id,
   name: user.name,
@@ -321,10 +472,19 @@ const publicUser = (user: MockUser) => ({
 // Tokens are stateless (`mock-token-<userId>`) so a stored session survives a
 // page reload without server-side state — mirroring how the real API resolves
 // bearer tokens via the database.
+/** Deterministic stand-in for sha1(email) in the signed verify URL. */
+const mockEmailHash = (user: MockUser): string => {
+  const value = `verify:${user.id}:${user.email}`;
+  let hash = 0;
+  for (const char of value) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash.toString(16).padStart(8, '0');
+};
+
 const bearerUser = (init?: RequestInit): MockUser | null => {
   const header = new Headers(init?.headers).get('Authorization');
   const match = header?.match(/^Bearer mock-token-(\d+)$/);
   if (!match) return null;
+  if (revokedTokens.has(`mock-token-${match[1]}`)) return null;
   return mockUsers.find((user) => user.id === Number(match[1])) || null;
 };
 
@@ -579,6 +739,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       role: 'user',
       referral_code: referralCode(),
       referred_by_user_id: referredBy ? referredBy.id : null,
+      is_active: true,
     };
     mockUsers.push(user);
     const token = `mock-token-${user.id}`;
@@ -588,10 +749,11 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
   if (path === '/api/auth/login' && method === 'POST') {
     const email = String(body?.email || '').trim().toLowerCase();
     const user = mockUsers.find((candidate) => candidate.email === email);
-    if (!user || user.password !== String(body?.password || '')) {
+    if (!user || user.password !== String(body?.password || '') || user.is_active === false) {
       return jsonResponse({ message: 'Email or password is incorrect.' }, 422);
     }
     const token = `mock-token-${user.id}`;
+    revokedTokens.delete(token); // a fresh login re-issues the session
     return jsonResponse({ token, user: publicUser(user) });
   }
 
@@ -605,6 +767,185 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     return jsonResponse({ ok: true });
   }
 
+  /* ---- Phase 0 hardening: recovery, verification, deletion ----------- */
+  if (path === '/api/auth/forgot-password' && method === 'POST') {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const user = mockUsers.find((candidate) => candidate.email === email);
+    // Always succeed (anti-enumeration); the demo token is returned only
+    // because there is no mail server — a real deployment emails the link.
+    if (user) {
+      const code = `reset-${user.id}-${Math.random().toString(36).slice(2, 10)}`;
+      resetCodes.set(email, code);
+      return jsonResponse({ message: 'If that account exists, a reset link has been sent.', demo_token: code });
+    }
+    return jsonResponse({ message: 'If that account exists, a reset link has been sent.' });
+  }
+
+  if (path === '/api/auth/reset-password' && method === 'POST') {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const user = mockUsers.find((candidate) => candidate.email === email);
+    const expected = resetCodes.get(email);
+    if (!user || !expected || expected !== String(body?.token || '')) {
+      return jsonResponse({ message: 'The reset link is invalid or has expired.' }, 422);
+    }
+    const password = String(body?.password || '');
+    if (password.length < 8 || password !== String(body?.password_confirmation || '')) {
+      return jsonResponse({ message: 'Passwords must be at least 8 characters and match.', errors: { password: ['Invalid password.'] } }, 422);
+    }
+    resetCodes.delete(email);
+    user.password = password;
+    revokedTokens.add(`mock-token-${user.id}`); // kill every live session
+    return jsonResponse({ message: 'Password reset. All other sessions were signed out.' });
+  }
+
+  const verifyMatch = path.match(/^\/api\/email\/verify\/(\d+)\/([a-f0-9]+)$/);
+  if (verifyMatch && method === 'GET') {
+    const user = mockUsers.find((candidate) => candidate.id === Number(verifyMatch[1]));
+    if (!user || verifyMatch[2] !== mockEmailHash(user)) {
+      return jsonResponse({ message: 'Invalid verification link.' }, 403);
+    }
+    emailVerified.add(user.id);
+    return jsonResponse({ message: 'Email verified.' });
+  }
+
+  if (path === '/api/email/verification-notification' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse({
+      message: emailVerified.has(user.id) ? 'Email already verified.' : 'Verification link sent.',
+      demo_hash: mockEmailHash(user),
+    });
+  }
+
+  if (path === '/api/auth/me' && method === 'DELETE') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    if (user.password !== String(body?.password || '')) {
+      return jsonResponse({ message: 'The password is incorrect.', errors: { password: ['The password is incorrect.'] } }, 422);
+    }
+    user.is_active = false;
+    user.name = 'Deleted user';
+    user.email = `deleted-${user.id}@deleted.invalid`;
+    revokedTokens.add(`mock-token-${user.id}`);
+    return jsonResponse({ message: 'Your account has been deactivated and anonymized.' });
+  }
+
+  /* ---- Phase 1 (2.5): notification inbox ------------------------------ */
+  if (path === '/api/notifications/unread-count' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse({
+      count: seamNotifications.filter((n) => n.user_id === user.id && !n.is_read).length,
+    });
+  }
+
+  if (path === '/api/notifications/read-all' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    let updated = 0;
+    for (const n of seamNotifications) {
+      if (n.user_id === user.id && !n.is_read) {
+        n.is_read = true;
+        n.read_at = nowISO();
+        updated += 1;
+      }
+    }
+    return jsonResponse({ message: 'All notifications marked as read.', updated });
+  }
+
+  const notificationReadMatch = path.match(/^\/api\/notifications\/(\d+)\/read$/);
+  if (notificationReadMatch && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const n = seamNotifications.find((row) => row.id === Number(notificationReadMatch[1]));
+    if (!n || n.user_id !== user.id) return jsonResponse({ error: 'Notification not found' }, 404);
+    if (!n.is_read) {
+      n.is_read = true;
+      n.read_at = nowISO();
+    }
+    return jsonResponse({ message: 'Notification marked as read.' });
+  }
+
+  if (path === '/api/notifications' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    let list = seamNotifications.filter((n) => n.user_id === user.id);
+    if (url.searchParams.get('unread') === '1') list = list.filter((n) => !n.is_read);
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1') || 1);
+    const perPage = 20;
+    return jsonResponse({
+      data: clone(list.slice((page - 1) * perPage, page * perPage)),
+      total: list.length,
+      current_page: page,
+      per_page: perPage,
+    });
+  }
+
+  /* ---- Phase 1 (2.2): geo search ------------------------------------- */
+  if (path === '/api/posts/nearby' && method === 'GET') {
+    const rawLat = url.searchParams.get('lat');
+    const rawLng = url.searchParams.get('lng');
+    const lat = Number(rawLat);
+    const lng = Number(rawLng);
+    if (
+      rawLat === null ||
+      rawLng === null ||
+      rawLat.trim() === '' ||
+      rawLng.trim() === '' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return jsonResponse(
+        { message: 'Valid lat and lng query parameters are required.', errors: { lat: ['Required.'] } },
+        422,
+      );
+    }
+    const radiusKm = Math.min(100, Math.max(0.1, Number(url.searchParams.get('radius_km') || '25') || 25));
+    const perPage = Math.min(50, Math.max(1, Number(url.searchParams.get('per_page') || '20') || 20));
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1') || 1);
+
+    const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const dLat = toRad(bLat - aLat);
+      const dLng = toRad(bLng - aLng);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+    };
+
+    const viewer = bearerUser(init);
+    const muted = viewer ? mutedIdsFor(viewer.id) : [];
+    const hits = visiblePosts()
+      .filter((p) => p.lat !== null && p.lat !== undefined && p.lng !== null && p.lng !== undefined)
+      .filter((p) => !muted.includes(p.profile_id))
+      .map((p) => ({
+        post: p,
+        distance_km: Number(haversineKm(lat, lng, p.lat as number, p.lng as number).toFixed(2)),
+      }))
+      .filter((entry) => entry.distance_km <= radiusKm)
+      .sort((a, b) => a.distance_km - b.distance_km);
+
+    const start = (page - 1) * perPage;
+    return jsonResponse({
+      data: clone(hits.slice(start, start + perPage)).map((entry) => ({
+        ...withLocationPrivacy(entry.post, viewer),
+        distance_km: entry.distance_km,
+      })),
+      meta: {
+        current_page: page,
+        per_page: perPage,
+        total: hits.length,
+        radius_km: radiusKm,
+        center: { latitude: lat, longitude: lng },
+      },
+    });
+  }
+
   /* ---- posts ---- */
   if (path === '/api/posts') {
     if (method === 'GET') {
@@ -616,14 +957,21 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         const page = Math.max(1, Number(url.searchParams.get('page') || '1'));
         const pageSize = 3;
         const start = (page - 1) * pageSize;
-        return jsonResponse(clone(clips.slice(start, start + pageSize)));
+        const viewer = bearerUser(init);
+        return jsonResponse(clone(clips.slice(start, start + pageSize)).map((p) => withLocationPrivacy(p, viewer)));
       }
       let list = [...visiblePosts()];
       const category = url.searchParams.get('category');
       const search = url.searchParams.get('search');
       if (category) list = list.filter((p) => p.category === category);
       if (search) list = list.filter((p) => matchesSearch(p, search));
-      return jsonResponse(clone(list));
+      const viewer = bearerUser(init);
+      // Phase 0 hardening: muted authors disappear from the viewer's feed.
+      if (viewer) {
+        const muted = mutedIdsFor(viewer.id);
+        if (muted.length) list = list.filter((p) => !muted.includes(p.profile_id));
+      }
+      return jsonResponse(clone(list).map((p) => withLocationPrivacy(p, viewer)));
     }
     if (method === 'PUT') {
       const post = posts.find((p) => p.id === body.id);
@@ -634,10 +982,21 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         post.view_count = (post.view_count || 0) + 1;
         return jsonResponse({ ok: true, view_count: post.view_count });
       }
-      if (!bearerUser(init)) return unauthorized();
+      const actor = bearerUser(init);
+      if (!actor) return unauthorized();
       if (body.action === 'like') {
         post.is_liked = !post.is_liked;
         post.like_count = Math.max(0, post.like_count + (post.is_liked ? 1 : -1));
+        // Phase 1 (2.5): tell the author their story was liked.
+        if (post.is_liked) {
+          notifyUser(
+            post.profile_id,
+            'like',
+            `${actor.name} liked your post.`,
+            `${actor.name} បានចូលចិត្តប្រកាសរបស់អ្នក។`,
+            actor.id,
+          );
+        }
       }
       if (body.action === 'share') post.share_count += 1;
       if (body.action === 'comment') post.comment_count += 1;
@@ -722,9 +1081,16 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         is_saved: false,
         business_name: null,
         destination_id: null,
-        // Phase 9 — self-reported safety & accessibility observations.
-        safety_tags: safetyTags,
-        created_at: nowISO(),
+      // Phase 9 — self-reported safety & accessibility observations.
+      safety_tags: safetyTags,
+      // Phase 0 hardening — location privacy. Default is APPROXIMATE
+      // (3 ≈ 110m); exact public coordinates are an explicit opt-in and
+      // sensitive posts are capped at ~1.1km for public viewers.
+      location_precision: typeof body?.location_precision === 'number'
+        ? Math.min(7, Math.max(0, Math.round(body.location_precision)))
+        : 3,
+      is_sensitive_location: Boolean(body?.is_sensitive_location),
+      created_at: nowISO(),
         author: clone(author),
         promotion: null,
         media,
@@ -743,7 +1109,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     }
     const post = visiblePosts().find((p) => p.id === id);
     if (!post) return jsonResponse({ error: 'Post not found' }, 404);
-    return jsonResponse(clone(post));
+    return jsonResponse(withLocationPrivacy(clone(post), bearerUser(init)));
   }
 
 
@@ -867,6 +1233,11 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     if (method === 'POST') {
       const user = bearerUser(init);
       if (!user) return unauthorized();
+      // Phase 0 hardening: blocked users cannot comment on each other's posts.
+      const commentTargetPost = posts.find((p) => p.id === body.post_id);
+      if (commentTargetPost && blockedBetween(user.id, commentTargetPost.profile_id)) {
+        return jsonResponse({ error: 'You cannot interact with this user.' }, 403);
+      }
       const asset = body.asset_id ? commentAssets.find((a) => a.id === body.asset_id) : null;
       if (!body.body?.trim() && !asset) return jsonResponse({ error: 'Comment cannot be empty' }, 400);
       const comment: Comment = {
@@ -885,7 +1256,17 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       const key = String(body.post_id);
       commentsByPost[key] = [comment, ...(commentsByPost[key] || [])];
       const post = posts.find((p) => p.id === body.post_id);
-      if (post) post.comment_count += 1;
+      if (post) {
+        post.comment_count += 1;
+        // Phase 1 (2.5): tell the author someone commented.
+        notifyUser(
+          post.profile_id,
+          'comment',
+          `${user.name} commented on your post.`,
+          `${user.name} បានមតិលើប្រកាសរបស់អ្នក។`,
+          user.id,
+        );
+      }
       return jsonResponse(clone(comment), 201);
     }
     if (method === 'PUT') {
@@ -904,10 +1285,216 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
 
   /* ---- follows ---- */
   if (path === '/api/follows' && method === 'POST') {
-    if (!bearerUser(init)) return unauthorized();
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    // Phase 0 hardening: a block in either direction ends social contact.
+    if (blockedBetween(user.id, Number(body.profile_id))) {
+      return jsonResponse({ error: 'You cannot interact with this user.' }, 403);
+    }
     const target = posts.find((p) => p.author.id === body.profile_id);
     if (target) applyFollowState(body.profile_id, !target.author.is_following);
     return jsonResponse({ ok: true });
+  }
+
+  /* ---- Phase 0 hardening: reports (users) ---- */
+  if (path === '/api/reports' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const type = body?.reportable_type;
+    if (type !== 'post' && type !== 'comment') {
+      return jsonResponse({ error: 'reportable_type must be post or comment' }, 422);
+    }
+    const targetId = Number(body?.reportable_id);
+    const reason = String(body?.reason || '');
+    if (!(REPORT_REASONS as readonly string[]).includes(reason)) {
+      return jsonResponse({ error: 'Unknown report reason.' }, 422);
+    }
+    if (type === 'post') {
+      const post = posts.find((p) => p.id === targetId);
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.profile_id === user.id) return jsonResponse({ error: 'You cannot report your own content.' }, 422);
+    } else {
+      const comment = Object.values(commentsByPost).flat().find((c) => c.id === targetId);
+      if (!comment) return jsonResponse({ error: 'Comment not found' }, 404);
+    }
+    const duplicate = reportRows.some(
+      (r) => r.reporter_id === user.id && r.reportable_type === type && r.reportable_id === targetId,
+    );
+    if (duplicate) return jsonResponse({ error: 'You already reported this item.' }, 409);
+    const report: ReportRow = {
+      id: nextReportId++,
+      reporter_id: user.id,
+      reportable_type: type,
+      reportable_id: targetId,
+      reason,
+      details: body?.details ? String(body.details) : null,
+      status: 'pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: nowISO(),
+    };
+    reportRows.unshift(report);
+    if (type === 'post') maybeAutoHidePost(targetId);
+    return jsonResponse(clone(report), 201);
+  }
+
+  if (path.startsWith('/api/reports/') && method === 'DELETE') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const id = Number(path.slice('/api/reports/'.length));
+    const index = reportRows.findIndex((r) => r.id === id);
+    if (index === -1) return jsonResponse({ error: 'Report not found' }, 404);
+    const report = reportRows[index];
+    if (report.reporter_id !== user.id) return jsonResponse({ error: 'You can only withdraw your own reports.' }, 403);
+    if (report.status !== 'pending') return jsonResponse({ error: 'Only pending reports can be withdrawn.' }, 422);
+    reportRows.splice(index, 1);
+    return jsonResponse({ message: 'Report withdrawn.' });
+  }
+
+  /* ---- Phase 0 hardening: blocks & mutes ---- */
+  const safetyMatch = path.match(/^\/api\/users\/(\d+)\/(block|mute)$/);
+  if (safetyMatch) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const targetId = Number(safetyMatch[1]);
+    const kind = safetyMatch[2];
+    if (targetId === user.id) {
+      return jsonResponse({ error: kind === 'block' ? 'You cannot block yourself.' : 'You cannot mute yourself.' }, 422);
+    }
+    // Known users include the seeded post authors (they have no login in
+    // the demo, but they are real members of the community).
+    const knownTarget =
+      mockUsers.some((u) => u.id === targetId) ||
+      posts.some((p) => p.author.id === targetId);
+    if (!knownTarget) return jsonResponse({ error: 'User not found' }, 404);
+
+    if (kind === 'block') {
+      if (method === 'POST') {
+        const row =
+          blockRows.find((b) => b.user_id === user.id && b.blocked_user_id === targetId) ||
+          blockRows[blockRows.push({ id: nextBlockId++, user_id: user.id, blocked_user_id: targetId }) - 1];
+        return jsonResponse({ blocked: true, id: row.id }, 201);
+      }
+      if (method === 'DELETE') {
+        const index = blockRows.findIndex((b) => b.user_id === user.id && b.blocked_user_id === targetId);
+        if (index !== -1) blockRows.splice(index, 1);
+        return jsonResponse({ blocked: false });
+      }
+    }
+    if (kind === 'mute') {
+      if (method === 'POST') {
+        const row =
+          muteRows.find((m) => m.user_id === user.id && m.muted_user_id === targetId) ||
+          muteRows[muteRows.push({ id: nextMuteId++, user_id: user.id, muted_user_id: targetId, muted_until: null }) - 1];
+        if (body?.muted_until) row.muted_until = String(body.muted_until);
+        return jsonResponse({ muted: true, id: row.id }, 201);
+      }
+      if (method === 'DELETE') {
+        const index = muteRows.findIndex((m) => m.user_id === user.id && m.muted_user_id === targetId);
+        if (index !== -1) muteRows.splice(index, 1);
+        return jsonResponse({ muted: false });
+      }
+    }
+  }
+
+  /* ---- Phase 0 hardening: admin report queue ---- */
+  /* ---- Phase 1 (2.4): admin dashboard stats -------------------------- */
+  if (path === '/api/admin/stats' && method === 'GET') {
+    const admin = bearerUser(init);
+    if (!admin) return unauthorized();
+    if (admin.role !== 'admin') return jsonResponse({ error: 'Forbidden' }, 403);
+
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recent = (iso: string) => new Date(iso).getTime() >= weekAgo;
+    const byProvince = new Map<string, number>();
+    for (const p of posts) {
+      if (p.province) byProvince.set(p.province, (byProvince.get(p.province) || 0) + 1);
+    }
+    return jsonResponse({
+      posts: {
+        total: posts.length,
+        published: visiblePosts().length,
+        pending_review: posts.filter((p) => p.status === 'pending_review').length,
+        rejected: posts.filter((p) => p.status === 'rejected').length,
+        last_7_days: posts.filter((p) => recent(p.created_at)).length,
+      },
+      reports: {
+        pending: reportRows.filter((r) => r.status === 'pending').length,
+        decided_last_7_days: reportRows.filter((r) => r.reviewed_at && recent(r.reviewed_at)).length,
+      },
+      users: {
+        total: mockUsers.length,
+        new_last_7_days: 0, // seam users carry no created_at
+      },
+      businesses: {
+        pending: businesses.filter((b) => b.status === 'pending').length,
+      },
+      top_provinces: [...byProvince.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([province, posts_count]) => ({ province, posts_count })),
+    });
+  }
+
+  if (path.startsWith('/api/admin/reports')) {
+    const admin = bearerUser(init);
+    if (!admin || admin.role !== 'admin') return jsonResponse({ error: 'Forbidden' }, 403);
+
+    if (path === '/api/admin/reports' && method === 'GET') {
+      const status = url.searchParams.get('status') || 'pending';
+      const list = reportRows.filter((r) => status === 'all' || r.status === status);
+      return jsonResponse(clone(list));
+    }
+    const idMatch = path.match(/^\/api\/admin\/reports\/(\d+)$/);
+    if (idMatch) {
+      const id = Number(idMatch[1]);
+      const report = reportRows.find((r) => r.id === id);
+      if (!report) return jsonResponse({ error: 'Report not found' }, 404);
+      if (method === 'GET') return jsonResponse(clone(report));
+      if (method === 'PATCH') {
+        const decision = String(body?.decision || '');
+        if (!['approved', 'rejected', 'dismissed'].includes(decision)) {
+          return jsonResponse({ error: 'Invalid decision.' }, 422);
+        }
+        report.status = decision as ReportRow['status'];
+        report.reviewed_by = admin.id;
+        report.reviewed_at = nowISO();
+        let ownerId: number | null = null;
+        if (decision === 'approved') {
+          if (report.reportable_type === 'post') {
+            const post = posts.find((p) => p.id === report.reportable_id);
+            if (post) {
+              post.status = 'rejected';
+              ownerId = post.profile_id;
+            }
+          } else {
+            for (const list of Object.values(commentsByPost)) {
+              const commentIndex = list.findIndex((c) => c.id === report.reportable_id);
+              if (commentIndex !== -1) list.splice(commentIndex, 1);
+            }
+          }
+        } else {
+          const post = posts.find((p) => p.id === report.reportable_id);
+          ownerId = post ? post.profile_id : null;
+        }
+        // Phase 1 (2.5): tell the content owner the report outcome.
+        if (ownerId !== null) {
+          notifyUser(
+            ownerId,
+            'report_reviewed',
+            decision === 'approved'
+              ? 'A report about your content was upheld and it is no longer public.'
+              : 'A report about your content was reviewed and no action was taken.',
+            decision === 'approved'
+              ? 'របាយការណ៍អំពីមាតិការបស់អ្នកត្រូវបានអនុម័ត ហើយវាលែងបង្ហាញជាសាធារណៈទៀតហើយ។'
+              : 'របាយការណ៍អំពីមាតិការបស់អ្នកត្រូវបានពិនិត្យ ដោយគ្មានវិធានការ។',
+            admin.id,
+          );
+        }
+        recordAudit(admin, `report.${decision}`, `${report.reportable_type} ${report.reportable_id}`);
+        return jsonResponse(clone(report));
+      }
+    }
   }
 
   /* ---- places: one-time confirmation (Phase 2) ----
@@ -1087,7 +1674,9 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
   if (path === '/api/hidden-gem/current' && method === 'GET') {
     if (!currentHiddenGem) return jsonResponse({ current: null });
     const post = visiblePosts().find((p) => p.id === currentHiddenGem?.post_id);
-    return jsonResponse({ current: { ...clone(currentHiddenGem), post: post ? clone(post) : null } });
+    return jsonResponse({
+      current: { ...clone(currentHiddenGem), post: post ? withLocationPrivacy(clone(post), bearerUser(init)) : null },
+    });
   }
 
   /* ---- Trending Now: recency-weighted hot posts (Phase 6) ---- */
@@ -1099,10 +1688,11 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       .map((p) => ({ post: p, score: trendScore(p, now) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 10);
+    const viewer = bearerUser(init);
     return jsonResponse({
       half_life_days: TRENDING_HALF_LIFE_DAYS,
       window_days: TRENDING_WINDOW_DAYS,
-      posts: clone(scored.map((s) => s.post)),
+      posts: clone(scored.map((s) => s.post)).map((p) => withLocationPrivacy(p, viewer)),
     });
   }
 
@@ -1121,7 +1711,7 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
     if (!slug.includes('/') && slug !== 'mine') {
       const list = collections.find((c) => c.slug === slug);
       if (!list) return jsonResponse({ error: 'Collection not found' }, 404);
-      return jsonResponse(clone(collectionDetail(list)));
+      return jsonResponse(clone(collectionDetail(list, bearerUser(init))));
     }
   }
 
@@ -1151,7 +1741,8 @@ function computeGeoRankings(scope: string, provinceId: number | null, limit: num
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((item) => {
         const p = visiblePosts().find((vp) => vp.id === item.post_id);
-        return p ? { id: item.id, sort_order: item.sort_order, post: clone(p) } : null;
+        // Phase 0 hardening — public viewers get rounded coordinates.
+        return p ? { id: item.id, sort_order: item.sort_order, post: withLocationPrivacy(clone(p), bearerUser(init)) } : null;
       })
       .filter(Boolean),
   });

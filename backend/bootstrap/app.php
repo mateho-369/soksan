@@ -13,9 +13,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Versioned JSON API: throttle everything under /api.
+        // Versioned JSON API: throttle everything under /api and stamp
+        // security headers on every response (Phase 0 hardening).
         $middleware->appendToGroup('api', [
             'throttle:api',
+            \App\Http\Middleware\EnsureSecurityHeaders::class,
         ]);
 
         // Role-based access control is available from day one; the admin

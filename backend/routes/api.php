@@ -1,6 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminPostManagementController;
+use App\Http\Controllers\Api\V1\Admin\AdminUserManagementController;
+use App\Http\Controllers\Api\V1\Admin\ReportAdminController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BlockController;
 use App\Http\Controllers\Api\V1\BookmarkController;
 use App\Http\Controllers\Api\V1\BusinessBillingController;
 use App\Http\Controllers\Api\V1\BusinessController;
@@ -17,7 +21,11 @@ use App\Http\Controllers\Api\V1\OpsController;
 use App\Http\Controllers\Api\V1\PartnerPlacementController;
 use App\Http\Controllers\Api\V1\PlaceController;
 use App\Http\Controllers\Api\V1\PostController;
+use App\Http\Controllers\Api\V1\MuteController;
+use App\Http\Controllers\Api\V1\NearbyPostController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\RankingController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TrendingController;
 use App\Http\Controllers\Api\V1\TripController;
 use App\Http\Controllers\Api\V1\UploadController;
@@ -35,6 +43,8 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     // Public reads -------------------------------------------------------
     Route::get('posts', [PostController::class, 'index']);
+    // Phase 1 (2.2) — geo search; declared before the {post} wildcard.
+    Route::get('posts/nearby', [NearbyPostController::class, 'index']);
     Route::get('posts/{post}', [PostController::class, 'show']);
     Route::get('posts/{post}/comments', [CommentController::class, 'index']);
     Route::get('leaderboard', [LeaderboardController::class, 'index']);
@@ -71,30 +81,59 @@ Route::prefix('v1')->group(function () {
     Route::middleware('throttle:auth')->group(function () {
         Route::post('auth/register', [AuthController::class, 'register']);
         Route::post('auth/login', [AuthController::class, 'login']);
+        // Phase 0 hardening — account recovery (tight limits).
+        Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword'])
+            ->middleware('throttle:password-reset');
+        Route::post('auth/reset-password', [AuthController::class, 'resetPassword'])
+            ->middleware('throttle:password-reset');
     });
+
+    // Email verification (signed URL, no auth needed to land on it).
+    Route::get('email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+        ->middleware('signed')->name('verification.verify');
 
     // Authenticated -------------------------------------------------------
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
 
-        Route::post('posts', [PostController::class, 'store']);
+        // Phase 0 hardening — resend verification + account deletion.
+        Route::post('email/verification-notification', [AuthController::class, 'sendVerificationNotification'])
+            ->middleware('throttle:verification');
+        Route::delete('me', [AuthController::class, 'destroy']);
+
+        // Phase 0 hardening: per-action rate limits (see AppServiceProvider).
+        Route::post('posts', [PostController::class, 'store'])->middleware('throttle:posts');
         Route::patch('posts/{post}', [PostController::class, 'update']);
         Route::delete('posts/{post}', [PostController::class, 'destroy']);
 
-        Route::post('uploads', UploadController::class);
+        Route::post('uploads', UploadController::class)->middleware('throttle:uploads');
 
-        Route::post('posts/{post}/comments', [CommentController::class, 'store']);
+        Route::post('posts/{post}/comments', [CommentController::class, 'store'])->middleware('throttle:social');
         Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
 
-        Route::post('posts/{post}/like', [LikeController::class, 'store']);
+        Route::post('posts/{post}/like', [LikeController::class, 'store'])->middleware('throttle:social');
         Route::delete('posts/{post}/like', [LikeController::class, 'destroy']);
 
-        Route::post('posts/{post}/bookmark', [BookmarkController::class, 'store']);
+        Route::post('posts/{post}/bookmark', [BookmarkController::class, 'store'])->middleware('throttle:social');
         Route::delete('posts/{post}/bookmark', [BookmarkController::class, 'destroy']);
 
-        Route::post('users/{user}/follow', [FollowController::class, 'store']);
+        Route::post('users/{user}/follow', [FollowController::class, 'store'])->middleware('throttle:social');
         Route::delete('users/{user}/follow', [FollowController::class, 'destroy']);
+
+        // Phase 0 hardening — user safety controls.
+        Route::post('reports', [ReportController::class, 'store'])->middleware('throttle:reports');
+        Route::delete('reports/{report}', [ReportController::class, 'destroy']);
+        Route::post('users/{user}/block', [BlockController::class, 'store'])->middleware('throttle:social');
+        Route::delete('users/{user}/block', [BlockController::class, 'destroy']);
+        Route::post('users/{user}/mute', [MuteController::class, 'store'])->middleware('throttle:social');
+        Route::delete('users/{user}/mute', [MuteController::class, 'destroy']);
+
+        // Phase 1 (2.5) — in-app notification inbox (local-only, no push).
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+        Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
 
         // Phase 2 — one-time Google Places confirmation (business) or a
         // manual pin (regular users). See PlacesService.
@@ -136,6 +175,8 @@ Route::prefix('v1')->group(function () {
 
         // Phase 5 — in-app admin behind role:admin. Every action is audited.
         Route::prefix('admin')->middleware('role:admin')->group(function () {
+            // Phase 1 (2.4) — dashboard snapshot (read-only counts).
+            Route::get('stats', [AdminController::class, 'stats']);
             Route::get('posts/pending', [AdminController::class, 'pendingPosts']);
             Route::post('posts/{post}/approve', [AdminController::class, 'approvePost']);
             Route::post('posts/{post}/reject', [AdminController::class, 'rejectPost']);
@@ -154,6 +195,19 @@ Route::prefix('v1')->group(function () {
             // admin-confirmed, audited endpoint.
             Route::get('places/duplicates', [AdminController::class, 'duplicatePlaces']);
             Route::post('places/merge', [AdminController::class, 'mergePlaces']);
+
+            // Phase 0 hardening — report queue + post/user administration.
+            Route::get('reports', [ReportAdminController::class, 'index']);
+            Route::get('reports/{report}', [ReportAdminController::class, 'show']);
+            Route::patch('reports/{report}', [ReportAdminController::class, 'update']);
+
+            Route::get('posts', [AdminPostManagementController::class, 'index']);
+            Route::patch('posts/{post}/status', [AdminPostManagementController::class, 'updateStatus']);
+            Route::delete('posts/{post}', [AdminPostManagementController::class, 'destroy']);
+
+            Route::get('users', [AdminUserManagementController::class, 'index']);
+            Route::patch('users/{user}/status', [AdminUserManagementController::class, 'updateStatus']);
+            Route::patch('users/{user}/role', [AdminUserManagementController::class, 'updateRole']);
         });
     });
 });

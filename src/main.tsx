@@ -1,13 +1,22 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { installApi } from './lib/api';
+import { assertProductionRuntime, shouldUseMock } from './lib/runtime';
 import App from './App';
 import './index.css';
 
-// The in-browser demo backend serves every /api request when no real API is
-// configured. Against a real backend (Docker / production) set
-// VITE_USE_MOCK=false so requests reach Laravel through /api/v1.
-if (import.meta.env?.VITE_USE_MOCK !== 'false') {
+/*
+ * DEMO GUARD (Phase 0 hardening).
+ *
+ * The in-browser demo API serves every /api request in `npm run dev` and in
+ * the test suite. In a production build this whole branch is removed by the
+ * bundler (import.meta.env.PROD is statically replaced), so the demo seam
+ * can never activate in production — and an explicit VITE_USE_MOCK=true in
+ * a production build throws instead (see src/lib/runtime.ts).
+ */
+if (import.meta.env.PROD) {
+  assertProductionRuntime();
+} else if (shouldUseMock()) {
+  const { installApi } = await import('./lib/api');
   installApi();
 }
 

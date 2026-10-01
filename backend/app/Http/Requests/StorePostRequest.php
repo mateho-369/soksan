@@ -33,6 +33,10 @@ class StorePostRequest extends FormRequest
             // Phase 9 — safety & accessibility tags: closed allow-list only.
             'safety_tags' => ['nullable', 'array', 'max:8'],
             'safety_tags.*' => ['string', Rule::in(SafetyTagService::allowed())],
+            // Phase 0 hardening — location privacy choices from the composer.
+            // Default stays approximate (3 ≈ 110m); exact is an explicit opt-in.
+            'location_precision' => ['nullable', 'integer', 'between:0,7'],
+            'is_sensitive_location' => ['nullable', 'boolean'],
         ];
     }
 }

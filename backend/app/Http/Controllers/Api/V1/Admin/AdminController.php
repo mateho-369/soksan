@@ -8,6 +8,8 @@ use App\Models\Business;
 use App\Models\PartnerPlacement;
 use App\Models\Place;
 use App\Models\Post;
+use App\Models\Report;
+use App\Models\User;
 use App\Services\DuplicatePlaceService;
 use App\Services\HiddenGemService;
 use App\Services\ModerationService;
@@ -119,6 +121,48 @@ class AdminController extends Controller
         $post = Post::query()->findOrFail($validated['post_id']);
 
         return response()->json($this->hiddenGems->pick($post, $request->user(), $validated['note'] ?? null), 201);
+    }
+
+    /* ── dashboard stats (Phase 1, 2.4) ─────────────────────────────── */
+
+    /**
+     * Read-only operational snapshot for the in-app admin dashboard.
+     * Counts only — no personal data, no per-user drill-downs here.
+     */
+    public function stats(): JsonResponse
+    {
+        $weekAgo = now()->subDays(7);
+
+        return response()->json([
+            'posts' => [
+                'total' => Post::count(),
+                'published' => Post::where('status', 'published')->count(),
+                'pending_review' => Post::where('status', 'pending_review')->count(),
+                'rejected' => Post::where('status', 'rejected')->count(),
+                'last_7_days' => Post::where('created_at', '>=', $weekAgo)->count(),
+            ],
+            'reports' => [
+                'pending' => Report::where('status', 'pending')->count(),
+                'decided_last_7_days' => Report::whereNotNull('reviewed_at')
+                    ->where('reviewed_at', '>=', $weekAgo)
+                    ->count(),
+            ],
+            'users' => [
+                'total' => User::count(),
+                'new_last_7_days' => User::where('created_at', '>=', $weekAgo)->count(),
+            ],
+            'businesses' => [
+                'pending' => Business::where('status', Business::STATUS_PENDING)->count(),
+            ],
+            'top_provinces' => Post::query()
+                ->whereNotNull('province')
+                ->select('province')
+                ->selectRaw('COUNT(*) AS posts_count')
+                ->groupBy('province')
+                ->orderByDesc('posts_count')
+                ->limit(5)
+                ->get(),
+        ]);
     }
 
     /* ── audit log ───────────────────────────────────────────────────── */

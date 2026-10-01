@@ -3,29 +3,37 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Services\MediaService;
+use App\Services\SafeMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class UploadController extends Controller
 {
-    public function __construct(private readonly MediaService $media)
+    public function __construct(private readonly SafeMediaService $media)
     {
     }
 
     /**
-     * Accepts a base64 file (matching the web client's composer) and stores
-     * it on the configured media disk after validating type and size.
+     * Accepts a base64 file (matching the web client's composer).
+     *
+     * Phase 0 hardening: the client's contentType is treated as an
+     * UNTRUSTED hint. SafeMediaService sniffs the real MIME from the file
+     * bytes, blocks unsafe types (SVG), re-encodes images to strip
+     * EXIF/GPS metadata, and enforces size/dimension caps.
      */
     public function __invoke(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'fileBase64' => ['required', 'string'],
-            'contentType' => ['required', 'string', 'in:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm'],
+            // Optional claimed type; must match the sniffed type if present.
+            'contentType' => ['nullable', 'string', 'max:120'],
         ]);
 
-        $url = $this->media->storeBase64($validated['fileBase64'], $validated['contentType']);
+        $result = $this->media->storeBase64(
+            $validated['fileBase64'],
+            $validated['contentType'] ?? null,
+        );
 
-        return response()->json(['url' => $url], 201);
+        return response()->json($result, 201);
     }
 }

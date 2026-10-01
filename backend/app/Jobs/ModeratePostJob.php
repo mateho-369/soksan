@@ -41,8 +41,10 @@ class ModeratePostJob implements ShouldQueue
         $flags = [];
 
         $flags['spam'] = $this->scoreSpam($this->post);
+        $flags['keywords'] = $this->scanKeywords($this->post);
         $flags['links'] = $this->scanLinks($this->post);
         $flags['media'] = $this->scanMedia($this->post);
+        $flags['reports'] = $this->scanReports($this->post);
 
         $verdict = in_array('blocked', $flags, true) ? 'blocked'
             : (in_array('review', $flags, true) ? 'needs_review' : 'published');
@@ -50,14 +52,58 @@ class ModeratePostJob implements ShouldQueue
         // New posts start published for a frictionless UX; moderation can
         // still pull them down. Flip to 'draft' defaults once providers
         // are wired if stricter pre-publication review is wanted.
-        if ($verdict !== 'published') {
-            $this->post->update(['status' => $verdict]);
+        if ($verdict !== 'published' && $this->post->status === 'published') {
+            $this->post->update(['status' => 'pending_review']);
         }
 
         Log::info("Moderation finished for post {$this->post->id}", [
             'verdict' => $verdict,
             'flags' => $flags,
         ]);
+    }
+
+    /**
+     * Config-driven keyword screen (config('moderation.spam_keywords')).
+     *
+     * @return string 'ok'|'review'
+     */
+    private function scanKeywords(Post $post): string
+    {
+        $caption = mb_strtolower((string) $post->caption);
+
+        foreach ((array) config('moderation.spam_keywords', []) as $keyword) {
+            if ($keyword !== '' && str_contains($caption, mb_strtolower($keyword))) {
+                return 'review';
+            }
+        }
+
+        return 'ok';
+    }
+
+    /**
+     * Community-signal check: heavily-reported posts (including
+     * private_location reports) go back to the human queue.
+     *
+     * @return string 'ok'|'review'
+     */
+    private function scanReports(Post $post): string
+    {
+        $threshold = (int) config('moderation.auto_hide_reports', 3);
+
+        $pending = $post->reports()
+            ->where('status', 'pending')
+            ->count();
+
+        if ($pending >= $threshold) {
+            return 'review';
+        }
+
+        // Even a single sensitive-location report warrants human eyes.
+        if ($post->reports()->where('reason', 'private_location')->exists()) {
+            return 'review';
+        }
+
+        return 'ok';
     }
 
     /**

@@ -29,11 +29,24 @@ class PostService
             ->when($category, fn ($query, $value) => $query->where('category', $value))
             ->when($province, fn ($query, $value) => $query->where('province', $value))
             ->when($search, function ($query, $value) {
-                $query->where(function ($q) use ($value) {
-                    $q->where('location_name', 'like', "%{$value}%")
-                        ->orWhere('province', 'like', "%{$value}%")
-                        ->orWhere('caption', 'like', "%{$value}%");
-                });
+                // Phase 1 (2.3) — bilingual search. Postgres gets ILIKE
+                // (case-insensitive, Khmer is unaffected by case anyway)
+                // plus GIN trigram indexes from the pg_trgm migration;
+                // SQLite keeps LIKE for the test suite.
+                $like = DB::getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+                $pattern = '%'.$value.'%';
+
+                $query->where(function ($q) use ($like, $pattern) {
+                    $q->whereRaw("location_name {$like} ?", [$pattern])
+                        ->orWhereRaw("province {$like} ?", [$pattern])
+                        ->orWhereRaw("caption {$like} ?", [$pattern]);
+                })
+                    // Light relevance ranking: name hits beat province hits
+                    // beat caption hits; newest first inside a tier.
+                    ->orderByRaw(
+                        "(CASE WHEN location_name {$like} ? THEN 2 WHEN province {$like} ? THEN 1 ELSE 0 END) DESC",
+                        [$pattern, $pattern]
+                    );
             })
             ->with(['author', 'media'])
             ->withCount(['likes', 'comments'])

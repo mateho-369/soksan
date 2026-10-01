@@ -1,0 +1,122 @@
+/* Phase 0 hardening — report dialog styling (mirrors safety-block rhythm). */
+.report-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 1rem;
+}
+
+.report-dialog {
+  background: #fff;
+  border-radius: 1.25rem;
+  max-width: 28rem;
+  width: 100%;
+  max-height: min(85vh, 34rem);
+  overflow: auto;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 23, 0.25);
+}
+
+.report-dialog h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.15rem;
+}
+
+.report-dialog .report-subtitle {
+  color: #6b7a78;
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.report-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.report-reasons label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e3eae8;
+  border-radius: 0.7rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.report-reasons label:has(input:checked) {
+  border-color: #0e7a6f;
+  background: #ecf7f4;
+}
+
+.report-details {
+  width: 100%;
+  border: 1px solid #e3eae8;
+  border-radius: 0.7rem;
+  padding: 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 3.5rem;
+  margin-bottom: 1rem;
+}
+
+.report-message {
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+.report-message.success {
+  color: #0e7a6f;
+}
+
+.report-message.error {
+  color: #b42323;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.report-actions .primary {
+  background: #0e7a6f;
+  color: #fff;
+  border: none;
+  border-radius: 0.7rem;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-actions .primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.report-actions .quiet {
+  background: #f1f5f4;
+  border: none;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.report-field-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7a78;
+  margin-bottom: 0.4rem;
+}

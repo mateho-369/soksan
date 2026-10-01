@@ -1,0 +1,71 @@
+# SokSan Network — reference Nginx configuration (Phase 0 hardening).
+#
+# Serves the built Vite app (dist/) and reverse-proxies /api to Laravel.
+# Security headers live HERE (and in public/_headers for Cloudflare Pages);
+# keep the CSP in sync with PRODUCTION_CSP in vite.config.ts.
+#
+# TLS is expected to terminate at Cloudflare (or certbot); the
+# Strict-Transport-Security header below assumes https-only serving.
+
+# When the API runs on the same host: upstream to php-fpm / artisan serve.
+upstream soksan_api {
+    server api:8000;            # docker-compose service name; adjust per deploy
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    server_name soksan.app www.soksan.app;
+    # Force https — Cloudflare Full (Strict) or certbot managed.
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name soksan.app www.soksan.app;
+
+    root /var/www/soksan/dist;
+    index index.html;
+
+    # ---- Security headers (Phase 0) --------------------------------------
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    # Keep in sync with PRODUCTION_CSP (vite.config.ts) and public/_headers.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://picsum.photos https://*.picsum.photos https://commondatastorage.googleapis.com https://*.r2.cloudflarestorage.com; media-src 'self' blob: https://commondatastorage.googleapis.com https://*.r2.cloudflarestorage.com; connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org https://*.r2.cloudflarestorage.com; worker-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests" always;
+
+    # ---- API proxy (same-origin; no CORS needed) -------------------------
+    location /api/ {
+        proxy_pass http://soksan_api;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        client_max_body_size 30m;       # media uploads (see config/media.php caps)
+    }
+
+    # ---- Long-lived hashed assets ----------------------------------------
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # The service worker + app shell must never be cached aggressively.
+    location = /sw.js {
+        add_header Cache-Control "no-cache" always;
+        try_files $uri =404;
+    }
+
+    # ---- SPA fallback -----------------------------------------------------
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Never serve dotfiles or backup files.
+    location ~ /\. { deny; }
+}
