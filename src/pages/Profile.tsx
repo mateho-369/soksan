@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BadgeCheck,
@@ -18,13 +18,16 @@ import {
   Check,
   QrCode,
   CircleCheck,
+  Grid3x3,
+  MessageCircle,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LoadingState, ErrorState } from '../components/States';
 import ContactActions from '../components/ContactActions';
 import ContributorCard from '../components/ContributorCard';
-import type { Profile as ProfileType, Service, Contact } from '../types';
+import type { Profile as ProfileType, Service, Contact, Post } from '../types';
 
 export default function Profile() {
   const { language, t } = useLanguage();
@@ -33,6 +36,7 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [contact, setContact] = useState<Contact | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [guestName, setGuestName] = useState('');
   const [formError, setFormError] = useState('');
@@ -45,20 +49,23 @@ export default function Profile() {
     setLoading(true);
     setError('');
     try {
-      const [profileRes, servicesRes, contactsRes] = await Promise.all([
+      const [profileRes, servicesRes, contactsRes, postsRes] = await Promise.all([
         apiFetch('/profile?id=1'),
         apiFetch('/services?profile_id=1'),
         apiFetch('/contacts?profile_id=1'),
+        apiFetch('/posts'),
       ]);
       if (!profileRes.ok || !servicesRes.ok || !contactsRes.ok) throw new Error('Could not load this guide profile');
-      const [profileData, servicesData, contactData] = await Promise.all([
+      const [profileData, servicesData, contactData, postsData] = await Promise.all([
         profileRes.json(),
         servicesRes.json(),
         contactsRes.json(),
+        postsRes.ok ? postsRes.json() : Promise.resolve([]),
       ]);
       setProfile(profileData);
       setServices(servicesData);
       setContact(contactData);
+      setUserPosts(Array.isArray(postsData) ? postsData.slice(0, 6) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load profile');
     } finally {
@@ -124,11 +131,11 @@ export default function Profile() {
     <div className="profile-page page-shell">
       <section className="profile-hero">
         <div className="cover-photo">
-          <img src={profile.cover_url} alt="Cambodian landscape" />
+          <img src={profile.cover_url || '/images/ream-coastal.jpg'} alt="Cambodian landscape" />
           <span />
         </div>
         <div className="profile-summary">
-          <img className="profile-avatar" src={profile.avatar_url} alt={profile.name} />
+          <img className="profile-avatar" src={profile.avatar_url || '/images/traveler-dara.jpg'} alt={profile.name} />
           <div className="profile-identity">
             <div>
               <h1>
@@ -140,10 +147,13 @@ export default function Profile() {
               </span>
             </div>
             <div className="profile-owner-actions">
-              <button className="merchant-center-link" onClick={() => navigate('/merchant')}>
+              <button type="button" className="merchant-center-link" onClick={() => navigate('/merchant')}>
                 <Megaphone /> Merchant Center
               </button>
-              <button>
+              <button type="button" className="profile-settings-link" onClick={() => navigate('/settings')}>
+                <SettingsIcon size={16} /> {language === 'kh' ? 'ការកំណត់' : 'Settings'}
+              </button>
+              <button type="button">
                 <Heart /> Follow local guide
               </button>
             </div>
@@ -192,6 +202,42 @@ export default function Profile() {
         </div>
       </section>
 
+      {/* Instagram-style Responsive Grid of User's Published Stories */}
+      {userPosts.length > 0 && (
+        <section className="profile-posts-section" aria-label="Published stories grid">
+          <header className="profile-posts-header">
+            <div>
+              <span className="eyebrow">
+                <Grid3x3 size={14} /> {language === 'kh' ? 'រឿងរ៉ាវដែលបានចែករំលែក' : 'Published Stories Grid'}
+              </span>
+              <h2>{language === 'kh' ? 'ការចងចាំពីគ្រប់ខេត្តក្រុង' : 'Field Dispatches & Visual Grid'}</h2>
+            </div>
+          </header>
+          <div className="profile-posts-grid">
+            {userPosts.map((post) => (
+              <Link key={post.id} to={`/post/${post.id}`} className="profile-post-tile">
+                {post.media_url ? (
+                  <img src={post.media_url} alt={post.location_name} loading="lazy" />
+                ) : (
+                  <div className="profile-post-fallback" />
+                )}
+                <div className="profile-post-overlay">
+                  <strong>{post.location_name}</strong>
+                  <div className="profile-post-metrics">
+                    <span>
+                      <Heart size={14} fill="currentColor" /> {post.like_count}
+                    </span>
+                    <span>
+                      <MessageCircle size={14} fill="currentColor" /> {post.comment_count}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="services-section">
         <header>
           <div>
@@ -201,7 +247,7 @@ export default function Profile() {
             <h2>{t('services')}</h2>
             <p>{t('servicesSub')}</p>
           </div>
-          <button>
+          <button type="button">
             View availability <ChevronRight />
           </button>
         </header>
@@ -227,7 +273,7 @@ export default function Profile() {
                   <span>
                     From <strong>${Number(service.price).toFixed(0)}</strong> / guest
                   </span>
-                  <button onClick={() => setSelectedService(service)}>
+                  <button type="button" onClick={() => setSelectedService(service)}>
                     {t('book')} <ChevronRight />
                   </button>
                 </div>
@@ -261,7 +307,7 @@ export default function Profile() {
                     </span>
                     <h2>{language === 'kh' ? selectedService.title_kh : selectedService.title}</h2>
                   </div>
-                  <button onClick={closeCheckout}>
+                  <button type="button" onClick={closeCheckout}>
                     <X />
                   </button>
                 </header>
@@ -315,7 +361,9 @@ export default function Profile() {
                     <h2>{t('received')}</h2>
                     <strong>${total.toFixed(2)}</strong>
                     <p>Reference {paymentRef}</p>
-                    <button onClick={closeCheckout}>Done</button>
+                    <button type="button" onClick={closeCheckout}>
+                      Done
+                    </button>
                   </motion.div>
                 ) : (
                   <>
@@ -338,7 +386,12 @@ export default function Profile() {
                     <div className="secure-note">
                       <ShieldCheck /> Encrypted transaction · No card details stored
                     </div>
-                    <button className="confirm-payment" disabled={paymentState === 'processing'} onClick={confirmPayment}>
+                    <button
+                      type="button"
+                      className="confirm-payment"
+                      disabled={paymentState === 'processing'}
+                      onClick={confirmPayment}
+                    >
                       {paymentState === 'processing' ? (
                         <>
                           <span className="button-spinner" /> Confirming with Bakong...

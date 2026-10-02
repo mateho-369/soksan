@@ -1,8 +1,20 @@
 import { apiFetch } from '../lib/http';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'lucide-react';
+import {
+  Navigation,
+  Search,
+  ChevronDown,
+  Star,
+  MapPin,
+  LocateFixed,
+  X,
+  Users,
+  Hash,
+  Map as MapIcon,
+  BadgeCheck,
+} from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ErrorState, EmptyState } from '../components/States';
 import { DestinationListSkeleton } from '../ui/Skeleton';
@@ -11,12 +23,66 @@ import TrendingRail from '../components/TrendingRail';
 import { isInsideCambodia, type LatLng } from '../lib/mapConfig';
 import type { Destination, Category } from '../types';
 
+type SearchTab = 'locations' | 'users' | 'tags' | 'map';
+
 interface DestinationListProps {
   destinations: Destination[];
   selectedId: number | null;
   language: 'en' | 'kh';
   onSelect: (id: number) => void;
 }
+
+const DISCOVER_CREATORS = [
+  {
+    id: 1,
+    name: 'Dara Sok',
+    name_kh: 'សុខ ដារ៉ា',
+    handle: '@dara.sok',
+    province: 'Kampot & Kep',
+    specialty: 'Coastal hikes, hidden lagoons & river stays',
+    avatar_url: '/images/traveler-dara.jpg',
+    followers: '12.4k',
+  },
+  {
+    id: 2,
+    name: 'Malis Chea',
+    name_kh: 'ម៉ាលីស ជា',
+    handle: '@malis.chea',
+    province: 'Koh Rong & Preah Sihanouk',
+    specialty: 'Island boat routes & reef conservation',
+    avatar_url: '/images/guide-sokha.jpg',
+    followers: '8.9k',
+  },
+  {
+    id: 3,
+    name: 'Vannak Chhim',
+    name_kh: 'វណ្ណៈ ឈឹម',
+    handle: '@vannak.coffee',
+    province: 'Mondulkiri & Ratanakiri',
+    specialty: 'Highland specialty coffee & cloud valleys',
+    avatar_url: '/images/creator-nary.jpg',
+    followers: '6.2k',
+  },
+  {
+    id: 4,
+    name: 'Sophea Meas',
+    name_kh: 'សុភា មាស',
+    handle: '@sophea.explore',
+    province: 'Siem Reap & Battambang',
+    specialty: 'Quiet temple trails & heritage architecture',
+    avatar_url: '/images/creator-rith.jpg',
+    followers: '15.1k',
+  },
+];
+
+const DISCOVER_TAGS = [
+  { tag: 'KohRong', label_kh: '#កោះរ៉ុង', count: '2,410 stories', category: 'island-beaches' },
+  { tag: 'KampotPepper', label_kh: '#ម្រេចកំពត', count: '1,840 stories', category: 'local-food' },
+  { tag: 'SiemReapSunrise', label_kh: '#ថ្ងៃរះសៀមរាប', count: '3,120 stories', category: 'temples-culture' },
+  { tag: 'MondulkiriMist', label_kh: '#អ័ព្ទមណ្ឌលគិរី', count: '940 stories', category: 'aesthetic-cafes' },
+  { tag: 'HiddenGemsKH', label_kh: '#តំបន់លាក់ខ្លួន', count: '4,290 stories', category: '' },
+  { tag: 'PhnomPenhCafes', label_kh: '#កាហ្វេភ្នំពេញ', count: '1,530 stories', category: 'aesthetic-cafes' },
+];
 
 function DestinationList({ destinations, selectedId, language, onSelect }: DestinationListProps) {
   return (
@@ -61,7 +127,7 @@ function DestinationList({ destinations, selectedId, language, onSelect }: Desti
 
 export default function Discover() {
   const { language, t } = useLanguage();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [category, setCategory] = useState('');
@@ -72,6 +138,15 @@ export default function Discover() {
   const [focus, setFocus] = useState<(LatLng & { token: number }) | null>(null);
 
   const query = searchParams.get('q') || '';
+  const initialTab = (searchParams.get('tab') as SearchTab) || 'locations';
+  const [activeTab, setActiveTab] = useState<SearchTab>(
+    ['locations', 'users', 'tags', 'map'].includes(initialTab) ? initialTab : 'locations',
+  );
+  const [searchDraft, setSearchDraft] = useState(query);
+
+  useEffect(() => {
+    setSearchDraft(query);
+  }, [query]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +179,15 @@ export default function Discover() {
     load();
   }, [load]);
 
+  const submitEngineSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const next = new URLSearchParams(searchParams);
+    const trimmed = searchDraft.trim();
+    if (trimmed) next.set('q', trimmed);
+    else next.delete('q');
+    setSearchParams(next);
+  };
+
   const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
 
   const mapPins = useMemo(
@@ -117,6 +201,23 @@ export default function Discover() {
       })),
     [destinations, language],
   );
+
+  const filteredCreators = useMemo(() => {
+    if (!query) return DISCOVER_CREATORS;
+    const lower = query.toLowerCase();
+    return DISCOVER_CREATORS.filter(
+      (c) =>
+        c.name.toLowerCase().includes(lower) ||
+        c.handle.toLowerCase().includes(lower) ||
+        c.province.toLowerCase().includes(lower),
+    );
+  }, [query]);
+
+  const filteredTags = useMemo(() => {
+    if (!query) return DISCOVER_TAGS;
+    const lower = query.toLowerCase().replace(/^#/, '');
+    return DISCOVER_TAGS.filter((item) => item.tag.toLowerCase().includes(lower));
+  }, [query]);
 
   const locateMe = () => {
     if (!navigator.geolocation) return;
@@ -145,7 +246,7 @@ export default function Discover() {
   );
 
   return (
-    <div className="discover-page">
+    <div className={`discover-page ${activeTab === 'map' ? 'map-expanded-mode' : ''}`}>
       <aside className="discover-panel">
         <div className="discover-heading">
           <span className="eyebrow">
@@ -154,8 +255,83 @@ export default function Discover() {
           <h1>{t('discoveryTitle')}</h1>
           <p>{t('discoverySubtitle')}</p>
         </div>
+
+        {/* Search Engine Bar & Tab Switcher (Locations, Users, Tags, Map) */}
+        <form className="search-engine-bar" onSubmit={submitEngineSearch} role="search" aria-label="Discover search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            placeholder={
+              language === 'kh'
+                ? 'ស្វែងរកទីតាំង អ្នកបង្កើត ឬ #ស្លាក...'
+                : 'Search locations, @users, or #tags...'
+            }
+            aria-label="Search destinations, users, or tags"
+          />
+          {searchDraft && (
+            <button
+              type="button"
+              className="search-engine-clear"
+              aria-label="Clear filter query"
+              onClick={() => {
+                setSearchDraft('');
+                const next = new URLSearchParams(searchParams);
+                next.delete('q');
+                setSearchParams(next);
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </form>
+
+        <div className="search-engine-tabs" role="tablist" aria-label="Search categories">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'locations'}
+            className={activeTab === 'locations' ? 'active' : ''}
+            onClick={() => setActiveTab('locations')}
+          >
+            <MapPin size={14} />
+            <span>{language === 'kh' ? 'ទីតាំង' : 'Locations'}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'users'}
+            className={activeTab === 'users' ? 'active' : ''}
+            onClick={() => setActiveTab('users')}
+          >
+            <Users size={14} />
+            <span>{language === 'kh' ? 'អ្នកប្រើប្រាស់' : 'Users'}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'tags'}
+            className={activeTab === 'tags' ? 'active' : ''}
+            onClick={() => setActiveTab('tags')}
+          >
+            <Hash size={14} />
+            <span>{language === 'kh' ? 'ស្លាក' : 'Tags'}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'map'}
+            className={activeTab === 'map' ? 'active' : ''}
+            onClick={() => setActiveTab('map')}
+          >
+            <MapIcon size={14} />
+            <span>{language === 'kh' ? 'ផែនទី' : 'Map'}</span>
+          </button>
+        </div>
+
         {/* Phase 6 — recency-weighted hot posts, refreshed per visit. */}
         <TrendingRail />
+
         <div className="discover-filters">
           <Search size={17} aria-hidden="true" />
           <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter places">
@@ -168,10 +344,55 @@ export default function Discover() {
           </select>
           <ChevronDown size={16} aria-hidden="true" />
         </div>
+
         <div className="result-count">
           <strong>{destinations.length}</strong> {t('nearby')}
           <span>{t('budget')} · USD</span>
         </div>
+
+        {activeTab === 'users' && (
+          <div className="search-engine-results-panel" aria-label="Matching users">
+            {filteredCreators.map((creator) => (
+              <Link to="/profile" key={creator.id} className="search-creator-card">
+                <img src={creator.avatar_url} alt="" />
+                <div>
+                  <strong>
+                    {language === 'kh' ? creator.name_kh : creator.name} <BadgeCheck size={14} />
+                  </strong>
+                  <span>
+                    {creator.handle} · {creator.province}
+                  </span>
+                  <small>{creator.specialty}</small>
+                </div>
+                <b>{creator.followers}</b>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'tags' && (
+          <div className="search-engine-tags-panel" aria-label="Matching hashtags">
+            {filteredTags.map((item) => (
+              <button
+                type="button"
+                key={item.tag}
+                className="search-tag-row"
+                onClick={() => {
+                  if (item.category) setCategory(item.category);
+                  setActiveTab('locations');
+                }}
+              >
+                <span className="search-tag-icon">#</span>
+                <div>
+                  <strong>#{item.tag}</strong>
+                  <small>{item.label_kh}</small>
+                </div>
+                <b>{item.count}</b>
+              </button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <DestinationListSkeleton count={4} />
         ) : error ? (
@@ -248,17 +469,19 @@ export default function Discover() {
           </button>
           <div className="sheet-title">
             <div>
-              <strong>{t('discoveryTitle')}</strong>
-              <small>
+              <strong>
                 {destinations.length} {t('nearby')}
-              </small>
+              </strong>
+              <span>{t('discoverySubtitle')}</span>
             </div>
-            <button type="button" aria-label="Close places sheet" onClick={() => setSheetOpen(false)}>
-              <X size={17} />
+            <button type="button" onClick={() => setSheetOpen(false)}>
+              Done
             </button>
           </div>
           {loading ? (
             <DestinationListSkeleton count={3} />
+          ) : error ? (
+            <ErrorState message={error} onRetry={load} />
           ) : destinations.length === 0 ? (
             <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
           ) : (

@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http';
 import { useEffect, useState, type ReactNode, type FormEvent } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   House,
@@ -22,6 +22,7 @@ import {
   HardDriveDownload,
   WifiOff,
   UserPlus,
+  Settings as SettingsIcon,
   X,
 } from 'lucide-react';
 import Brand from './Brand';
@@ -33,6 +34,8 @@ import type { Ad } from '../types';
 import '../styles/discovery.css';
 
 const MotionNavLink = motion.create(NavLink);
+
+const FULL_VIEWPORT_ROUTES = new Set(['/clips', '/discover', '/messages']);
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { t, setLanguage, language } = useLanguage();
@@ -89,13 +92,18 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const isLockedViewport = FULL_VIEWPORT_ROUTES.has(location.pathname);
+  const routeSlug = location.pathname.replace('/', '') || 'home';
+
   return (
     <div
       lang={language === 'kh' ? 'km' : 'en'}
       data-lang={language}
-      className={language === 'kh' ? 'font-kh kh' : 'font-en'}
+      className={`app-shell min-h-dvh flex flex-col ${isLockedViewport ? 'h-dvh overflow-hidden is-locked-viewport' : ''} ${
+        language === 'kh' ? 'font-kh kh' : 'font-en'
+      }`}
     >
-      <header className="topbar">
+      <header className="topbar sticky top-0 z-50 shrink-0">
         <div className="nav-shell">
           <NavLink to="/" className="brand-link" aria-label="SokSan Network Home">
             <Brand />
@@ -139,6 +147,10 @@ export default function Layout({ children }: { children: ReactNode }) {
             )}
           </form>
           <div className="nav-actions">
+            <span className="nav-status-pill" title="Cambodia ICT · Live Network">
+              <i className={online ? 'online' : 'offline'} aria-hidden="true" />
+              <small>KH · ICT</small>
+            </span>
             <NavLink
               to="/offline"
               className="icon-button offline-library-button"
@@ -193,6 +205,14 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <Search size={19} />
             </button>
+            <NavLink
+              to="/settings"
+              className="icon-button settings-nav-button"
+              aria-label={language === 'kh' ? 'ការកំណត់' : 'Settings'}
+              title={language === 'kh' ? 'ការកំណត់' : 'Settings'}
+            >
+              <SettingsIcon size={18} />
+            </NavLink>
             <button
               type="button"
               className="icon-button notification-button"
@@ -225,7 +245,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
 
       {bannerAd && bannerVisible && (
-        <div className="announcement-strip" role="region" aria-label="Featured announcement">
+        <div className="announcement-strip shrink-0" role="region" aria-label="Featured announcement">
           <a href={bannerAd.target_url} target="_blank" rel="noreferrer">
             <MapPinCheck size={15} aria-hidden="true" />
             <span>
@@ -267,7 +287,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       )}
 
       {!online && (
-        <div className="offline-banner" role="status">
+        <div className="offline-banner shrink-0" role="status">
           <WifiOff size={15} />
           <span>{t('offline.banner')}</span>
           <NavLink to="/offline">{t('offline.openLibrary')}</NavLink>
@@ -275,12 +295,30 @@ export default function Layout({ children }: { children: ReactNode }) {
       )}
 
       <main
-        className={`app-main route-${location.pathname.replace('/', '') || 'home'} ${
+        className={`app-main flex-1 min-h-0 route-${routeSlug} ${
           bannerAd && bannerVisible ? 'has-strip' : 'no-strip'
         }`}
       >
         {children}
       </main>
+
+      {!isLockedViewport && (
+        <footer className="app-footer shrink-0" role="contentinfo">
+          <div className="app-footer-inner">
+            <span>
+              <strong>SokSan Network សុខសាន្ត</strong> ·{' '}
+              {language === 'kh'
+                ? 'បណ្តាញសង្គមទេសចរណ៍កម្ពុជាពីរភាសា'
+                : 'Bilingual Cambodia Social Discovery'}
+            </span>
+            <div className="app-footer-links">
+              <Link to="/discover">{language === 'kh' ? 'ផែនទី' : 'Explore Map'}</Link>
+              <Link to="/rankings">{language === 'kh' ? 'ចំណាត់ថ្នាក់' : 'Province Rankings'}</Link>
+              <Link to="/settings">{language === 'kh' ? 'ការកំណត់' : 'Settings'}</Link>
+            </div>
+          </div>
+        </footer>
+      )}
 
       <nav className="mobile-bottom-nav social-mobile-nav" aria-label="Mobile navigation">
         {links.map(({ to, label, icon: Icon }) => (

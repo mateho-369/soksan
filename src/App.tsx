@@ -15,6 +15,7 @@ const Clips = lazy(() => import('./pages/Clips'));
 const Messages = lazy(() => import('./pages/Messages'));
 const Partners = lazy(() => import('./pages/Partners'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Settings = lazy(() => import('./pages/Settings'));
 const MerchantCenter = lazy(() => import('./pages/MerchantCenter'));
 const BusinessRegister = lazy(() => import('./pages/BusinessRegister'));
 const BusinessDashboard = lazy(() => import('./pages/BusinessDashboard'));
@@ -35,35 +36,36 @@ export default function App() {
           {/* Global accessibility gate: every Framer Motion animation below
               simplifies automatically for prefers-reduced-motion users. */}
           <MotionConfig reducedMotion="user">
-          <Layout>
-            <Suspense fallback={<LoadingState />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/discover" element={<Discover />} />
-                <Route path="/rankings" element={<Rankings />} />
-                <Route path="/clips" element={<Clips />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/partners" element={<Partners />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/merchant" element={<MerchantCenter />} />
-                <Route path="/admin" element={<AdminPanel />} />
-                <Route path="/trips" element={<Trips />} />
-                <Route path="/trip/:slug" element={<TripPublic />} />
-                <Route path="/collections" element={<Collections />} />
-                <Route path="/collection/:slug" element={<CollectionPublic />} />
-                <Route path="/post/:id" element={<PostPublic />} />
-                <Route path="/offline" element={<OfflineLibrary />} />
-                <Route path="/business/register" element={<BusinessRegister />} />
-                <Route path="/business/dashboard" element={<BusinessDashboard />} />
-                {/* Public profile (Phase 4 lead surface). Static routes above
-                    win over this dynamic segment. */}
-                <Route path="/business/:id" element={<BusinessProfile />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </Layout>
+            <Layout>
+              <Suspense fallback={<LoadingState />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/discover" element={<Discover />} />
+                  <Route path="/rankings" element={<Rankings />} />
+                  <Route path="/clips" element={<Clips />} />
+                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/partners" element={<Partners />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/merchant" element={<MerchantCenter />} />
+                  <Route path="/admin" element={<AdminPanel />} />
+                  <Route path="/trips" element={<Trips />} />
+                  <Route path="/trip/:slug" element={<TripPublic />} />
+                  <Route path="/collections" element={<Collections />} />
+                  <Route path="/collection/:slug" element={<CollectionPublic />} />
+                  <Route path="/post/:id" element={<PostPublic />} />
+                  <Route path="/offline" element={<OfflineLibrary />} />
+                  <Route path="/business/register" element={<BusinessRegister />} />
+                  <Route path="/business/dashboard" element={<BusinessDashboard />} />
+                  {/* Public profile (Phase 4 lead surface). Static routes above
+                      win over this dynamic segment. */}
+                  <Route path="/business/:id" element={<BusinessProfile />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </Layout>
           </MotionConfig>
         </BrowserRouter>
       </AuthProvider>

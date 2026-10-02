@@ -18,6 +18,8 @@ import {
   ListPlus,
   HardDriveDownload,
   FolderHeart,
+  Layers,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ErrorState, EmptyState } from '../components/States';
@@ -27,8 +29,10 @@ import BoostModal from '../components/BoostModal';
 import TripPicker from '../components/trips/TripPicker';
 import CollectionPicker from '../components/collections/CollectionPicker';
 import ShareCard from '../components/ShareCard';
+import RichCaption from '../components/RichCaption';
+import RightSidebar from '../components/RightSidebar';
 import { isSavedOffline, removeOffline, saveOffline } from '../lib/offlineStore';
-import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
+import { InFeedAd } from '../components/SponsoredAd';
 import HiddenGemBanner from '../components/HiddenGemBanner';
 import { useAuth } from '../contexts/AuthContext';
 import LikeButton from '../ui/LikeButton';
@@ -61,6 +65,7 @@ export default function Home() {
   const [offlineTick, setOfflineTick] = useState(0);
   const [viewerPostId, setViewerPostId] = useState<number | null>(null);
   const [viewerComments, setViewerComments] = useState(false);
+  const [snapMode, setSnapMode] = useState(true);
 
   const query = searchParams.get('q') || '';
 
@@ -232,6 +237,9 @@ export default function Home() {
             <button type="button" onClick={() => navigate('/partners')}>
               <Users size={16} /> {t('navigation.partners')}
             </button>
+            <button type="button" onClick={() => navigate('/settings')}>
+              <SettingsIcon size={16} /> {language === 'kh' ? 'ការកំណត់' : 'Settings'}
+            </button>
           </nav>
           <div className="rail-categories">
             <span>{t('social.exploreByMood')}</span>
@@ -258,9 +266,21 @@ export default function Home() {
               <h1>{t('feed.title')}</h1>
               <p>{t('feed.subtitle')}</p>
             </div>
-            <button type="button" onClick={() => navigate('/clips')}>
-              <Play size={15} /> {t('social.watchClips')}
-            </button>
+            <div className="feed-heading-actions">
+              <button
+                type="button"
+                className={`snap-mode-toggle ${snapMode ? 'active' : ''}`}
+                aria-pressed={snapMode}
+                onClick={() => setSnapMode((current) => !current)}
+                title="Toggle 1-up vertical snap scrolling"
+              >
+                <Layers size={15} />
+                <span>{language === 'kh' ? '១-ជួរ Snap' : '1-Up Snap'}</span>
+              </button>
+              <button type="button" onClick={() => navigate('/clips')}>
+                <Play size={15} /> {t('social.watchClips')}
+              </button>
+            </div>
           </header>
 
           {/* Phase 5 — admin-picked Hidden Gem of the Week (display part). */}
@@ -309,7 +329,11 @@ export default function Home() {
               body={query ? t('feed.emptySearchHelp') : t('feed.emptyHelp')}
             />
           ) : (
-            <section className="facebook-feed">
+            <section
+              className={`facebook-feed flex flex-col ${
+                snapMode ? 'snap-y snap-mandatory is-snap-feed' : 'snap-y snap-proximity'
+              }`}
+            >
               {posts.map((post, index) => {
                 const caption = language === 'kh' ? post.caption_kh : post.caption_en;
                 const isExpanded = expanded.includes(post.id);
@@ -332,7 +356,7 @@ export default function Home() {
                 return (
                   <Fragment key={post.id}>
                     <motion.article
-                      className={`post-card facebook-post ${post.promotion ? 'promoted-post' : ''}`}
+                      className={`post-card facebook-post snap-start ${post.promotion ? 'promoted-post' : ''}`}
                       initial={{ opacity: 0, y: 18 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ ...springs.gentle, delay: Math.min(index * 0.06, 0.3) }}
@@ -341,7 +365,9 @@ export default function Home() {
                         <img src={post.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                         <div>
                           <div className="author-name">
-                            <span>{language === 'kh' && post.author.name_kh ? post.author.name_kh : post.author.name}</span>
+                            <span>
+                              {language === 'kh' && post.author.name_kh ? post.author.name_kh : post.author.name}
+                            </span>
                             {post.author.verified && <BadgeCheck size={15} aria-label="Verified" />}
                             <button
                               type="button"
@@ -373,7 +399,11 @@ export default function Home() {
                       </header>
 
                       <div className="facebook-caption">
-                        <p className={isExpanded ? '' : 'caption-clamped'}>{caption}</p>
+                        <RichCaption
+                          text={caption}
+                          hashtags={post.hashtags}
+                          className={isExpanded ? '' : 'caption-clamped'}
+                        />
                         {caption.length > 145 && (
                           <button
                             type="button"
@@ -386,7 +416,6 @@ export default function Home() {
                             {t(isExpanded ? 'common.seeLess' : 'common.seeMore')}
                           </button>
                         )}
-                        {post.hashtags && <span>{post.hashtags}</span>}
                       </div>
 
                       <button
@@ -521,30 +550,12 @@ export default function Home() {
           )}
         </section>
 
-        <aside className="feed-right-rail">
-          <div className="sidebar-label">
-            <span>{t('common.sponsored')}</span>
-            <small>300 × 250</small>
-          </div>
-          <SidebarAd ad={sidebarAd} />
-          <div className="right-rail-card">
-            <span>Live in Cambodia</span>
-            <h3>{t('social.everyProvince')}</h3>
-            <div>
-              {provinces.slice(0, 4).map((province) => (
-                <button
-                  type="button"
-                  key={province.id}
-                  onClick={() => navigate(`/discover?q=${province.name}`)}
-                >
-                  <span>{province.icon}</span>
-                  <strong>{language === 'kh' ? province.name_kh : province.name}</strong>
-                  <small>{province.explorers?.toLocaleString()} explorers</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
+        <RightSidebar
+          posts={posts}
+          provinces={provinces}
+          sidebarAd={sidebarAd}
+          onFollow={toggleFollow}
+        />
       </div>
 
       <PostViewer

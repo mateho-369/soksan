@@ -8,6 +8,8 @@ import { useStreak } from '../ui/useStreak';
 import { GEM_THRESHOLD, useGemMoment } from '../ui/useGemMoment';
 import { GemToast } from '../ui/GemMoment';
 import { DestinationListSkeleton } from '../ui/Skeleton';
+import { RichCaption } from '../components/RichCaption';
+import { MemoryRouter } from 'react-router-dom';
 import { renderAppAt, loginAsDemoUser } from './render';
 import { mapMock } from './maplibre-mock';
 
@@ -132,5 +134,55 @@ describe('shared dopamine UI', () => {
     await user.click(zoomOut);
     await user.click(resetView);
     expect((mapMock.lastMap()?.flyToCalls.length ?? 0)).toBeGreaterThanOrEqual(beforeCalls + 3);
+  });
+
+  it('RichCaption parses #hashtags and @mentions into clickable Link elements', () => {
+    render(
+      <MemoryRouter>
+        <RichCaption
+          text="Morning coffee with @vannak.coffee in #MondulkiriMist"
+          hashtags="#KampotPepper #KohRong"
+        />
+      </MemoryRouter>,
+    );
+
+    const mentionLink = screen.getByRole('link', { name: '@vannak.coffee' });
+    expect(mentionLink).toHaveAttribute('href', '/discover?q=vannak.coffee&tab=users');
+
+    const inlineHashtag = screen.getByRole('link', { name: '#MondulkiriMist' });
+    expect(inlineHashtag).toHaveAttribute('href', '/discover?q=MondulkiriMist&tab=tags');
+
+    const pillHashtag = screen.getByRole('link', { name: '#KampotPepper' });
+    expect(pillHashtag).toHaveAttribute('href', '/discover?q=KampotPepper&tab=tags');
+  });
+
+  it('renders 1-up snap-scrolling feed and right sidebar widgets (Suggested Profiles & Trending Tags)', async () => {
+    renderAppAt('/');
+
+    expect(await screen.findByText(/sand path that ends where the fishing boats rest/i)).toBeInTheDocument();
+    expect(screen.getByText(/suggested profiles to follow/i)).toBeInTheDocument();
+    expect(screen.getByText(/trending tags/i)).toBeInTheDocument();
+
+    const feedSection = document.querySelector('.facebook-feed');
+    expect(feedSection?.className).toContain('snap-y');
+    expect(feedSection?.className).toContain('snap-mandatory');
+  });
+
+  it('switches search engine tabs (Locations, Users, Tags, Map) on Discover and renders Settings SaaS dashboard', async () => {
+    const user = userEvent.setup();
+    renderAppAt('/discover');
+
+    const usersTab = await screen.findByRole('tab', { name: /users/i });
+    await user.click(usersTab);
+    expect(await screen.findByLabelText('Matching users')).toBeInTheDocument();
+
+    const tagsTab = screen.getByRole('tab', { name: /tags/i });
+    await user.click(tagsTab);
+    expect(await screen.findByLabelText('Matching hashtags')).toBeInTheDocument();
+
+    renderAppAt('/settings');
+    expect(await screen.findByRole('heading', { name: /settings & preferences/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText(/preferences saved/i)).toBeInTheDocument();
   });
 });
