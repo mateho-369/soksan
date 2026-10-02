@@ -40,6 +40,7 @@ npm run dev        # demo mode: in-browser API, full app works offline
 
 The browser-side demo backend (`src/lib/api.ts`) implements the same
 `/api/v1` contract, so every feature works without the Laravel service.
+- Demo accounts (in-browser mock): `dara@soksan.app` / `soksan123` (member) and `admin@soksan.app` / `soksan123` (admin).
 
 ## Tests, lint, build
 
@@ -180,9 +181,9 @@ reachable from outside the stack.
   HMR only. Production serves a hardened policy (`script-src 'self'`, no
   `ws:`) from three synced copies: the Vite build injects it into
   `index.html`, `public/_headers` for static hosts, and
-  `deploy/nginx.conf.example`. Allowed third parties: OpenFreeMap tiles,
-  R2 storage, Google Fonts (disclosed in the privacy policy) — nothing
-  else.
+  `deploy/nginx.conf.example`. Allowed third parties: OpenFreeMap tiles and
+  R2 storage (all fonts — Inter, Kantumruy Pro, Bricolage Grotesque, and
+  Hanuman — are self-hosted via Fontsource woff2) — nothing else.
 - **Security headers middleware** (`EnsureSecurityHeaders`, registered in
   `bootstrap/app.php`): nosniff, frame DENY, strict referrer,
   Permissions-Policy, HSTS in production, `Cache-Control: no-store` on

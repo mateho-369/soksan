@@ -25,37 +25,38 @@ function readStreak(): StreakState {
   return { count: 0, last: '' };
 }
 
+function resolveStreak(): StreakState & { isNewToday: boolean } {
+  const stored = readStreak();
+  const now = today();
+
+  if (stored.last === now) {
+    return { ...stored, isNewToday: false };
+  }
+
+  return {
+    count: stored.last === yesterday() ? stored.count + 1 : 1,
+    last: now,
+    isNewToday: true,
+  };
+}
+
 /**
  * Daily-open streak: +1 for each consecutive day the app is opened.
  * Purely motivational — lives in localStorage, no server involved.
  */
 export function useStreak(): StreakState & { isNewToday: boolean } {
-  const [state, setState] = useState<StreakState & { isNewToday: boolean }>(() => ({
-    ...readStreak(),
-    isNewToday: false,
-  }));
+  const [state] = useState<StreakState & { isNewToday: boolean }>(resolveStreak);
 
   useEffect(() => {
-    const stored = readStreak();
-    const now = today();
-
-    if (stored.last === now) {
-      setState({ ...stored, isNewToday: false });
-      return;
-    }
-
-    const next: StreakState = {
-      count: stored.last === yesterday() ? stored.count + 1 : 1,
-      last: now,
-    };
-
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ count: state.count, last: state.last }),
+      );
     } catch {
       /* still show the streak even if it cannot persist */
     }
-    setState({ ...next, isNewToday: true });
-  }, []);
+  }, [state.count, state.last]);
 
   return state;
 }

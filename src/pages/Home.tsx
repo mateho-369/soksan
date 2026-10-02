@@ -396,10 +396,10 @@ export default function Home() {
                         aria-label={`View media for ${post.location_name}`}
                       >
                         {currentMedia.media_type === 'video' ? (
-                          <video src={currentMedia.media_url} muted playsInline preload="metadata" />
-                        ) : (
+                          <video src={currentMedia.media_url || undefined} muted playsInline preload="metadata" />
+                        ) : currentMedia.media_url ? (
                           <img src={currentMedia.media_url} alt={post.location_name} loading="lazy" />
-                        )}
+                        ) : null}
                         <span className="image-wash" />
                         {currentMedia.media_type === 'video' && (
                           <div className="video-play">

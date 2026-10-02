@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Phase 6 — installable/offline app shell. -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="SokSan Network (សុខសាន្ត) — Cambodia's serene travel social network. Hidden gems, aesthetic cafes, eco-resorts and KHQR bookings." />
     <title>SokSan Network · សុខសាន្ត</title>
 
@@ -14,25 +14,15 @@
 
       1. TRACKING REMOVED. This file previously contained three scripts
          injected by the design/export tooling, none of which belong to
-         SokSan:
-           - a full-session recorder (rrweb) that also captured
-             keystrokes, clicks, scroll and cursor paths;
-           - a page-view beacon that POSTed to the design tool's API with
-             a persistent localStorage viewer id;
-           - an injected element-picker editor listening on
-             postMessage('*').
-         All three are deleted (2026-09-29). There is now NO analytics,
+         SokSan. All three are deleted. There is now NO analytics,
          NO third-party script, and NO external beacon in this app.
 
       2. CSP notes (Phase 0 hardening):
-         - The CSP meta tag below is the DEVELOPMENT policy: script-src
-           keeps 'unsafe-inline' for the Vite dev server's React-Refresh
-           preamble and connect-src allows ws:/wss: for HMR.
+         - The CSP meta tag below is the DEVELOPMENT policy for Vite HMR.
          - At `vite build` time, vite.config.ts (productionCspPlugin) swaps
-           it for the hardened PRODUCTION CSP: script-src 'self' only, no
-           ws:, tile/R2/media domains allow-listed. frame-ancestors is set
-           via public/_headers + deploy/nginx.conf.example (meta tags
-           cannot express it).
+           it for the hardened PRODUCTION CSP (script-src 'self' only,
+           tile/R2/media domains allow-listed). frame-ancestors is set
+           via public/_headers + deploy/nginx.conf.example.
          - X-Frame-Options, X-Content-Type-Options and HSTS are enforced
            at the web server/CDN (see docs/DEPLOYMENT.md).
     -->

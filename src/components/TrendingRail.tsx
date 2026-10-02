@@ -40,7 +40,7 @@ export default function TrendingRail() {
       <ol>
         {posts.slice(0, 8).map((post, index) => (
           <li key={post.id} className="trending-card">
-            <img src={post.media_url} alt="" loading="lazy" />
+            {post.media_url && <img src={post.media_url} alt="" loading="lazy" />}
             <div>
               <span className="trending-rank">#{index + 1}</span>
               <strong>{post.location_name}</strong>

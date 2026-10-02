@@ -1,114 +1,117 @@
 /* Phase 5 — in-app admin panel (role:admin). Uses shared tokens. */
 
 .admin-page {
-  max-width: 860px;
+  max-width: 880px;
   margin: 0 auto;
-  padding: 22px 16px 64px;
+  padding: 24px 16px 72px;
 }
 
 .admin-heading h1 {
   margin: 6px 0 14px;
   font-family: var(--font-display, inherit);
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .admin-gate {
   display: grid;
   justify-items: center;
-  gap: 10px;
+  gap: 12px;
   text-align: center;
-  padding: 42px 18px;
-  background: var(--sage-pale, #e6efe6);
-  border-radius: var(--radius-card, 18px);
-  color: var(--sage-dark, #5f7d6a);
+  padding: 44px 20px;
+  background: var(--sage-pale, #e6f0ea);
+  border-radius: var(--radius-card, 20px);
+  color: var(--sage-dark, #2b503c);
 }
 
 .admin-gate h1 {
   margin: 0;
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .admin-tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .admin-tabs button {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 25%, transparent);
+  border: 1px solid var(--border-strong, rgba(28, 40, 34, 0.14));
   background: #fff;
-  color: var(--muted, #748078);
-  border-radius: var(--radius-pill, 999px);
-  padding: 8px 14px;
+  color: var(--muted, #526158);
+  border-radius: var(--radius-pill, 9999px);
+  padding: 9px 16px;
   font-weight: 700;
-  font-size: 0.84rem;
+  font-size: var(--text-xs, 0.8125rem);
   cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
 .admin-tabs button.active {
-  background: var(--sage-dark, #5f7d6a);
-  border-color: var(--sage-dark, #5f7d6a);
+  background: var(--sage-dark, #2b503c);
+  border-color: var(--sage-dark, #2b503c);
   color: #fff;
 }
 
 .admin-notice {
-  margin: 0 0 12px;
-  padding: 9px 14px;
-  background: var(--accent-soft, #ffe6de);
-  color: var(--accent-deep, #e8543a);
-  border-radius: 12px;
+  margin: 0 0 14px;
+  padding: 10px 16px;
+  background: var(--accent-soft, #fff0ec);
+  color: var(--accent-deep, #b83b22);
+  border-radius: 14px;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .admin-queue {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .admin-empty {
-  color: var(--muted, #748078);
-  background: var(--sage-pale, #e6efe6);
-  padding: 18px;
-  border-radius: var(--radius-card, 18px);
+  color: var(--muted, #526158);
+  background: var(--sage-pale, #e6f0ea);
+  padding: 20px;
+  border-radius: var(--radius-card, 20px);
   text-align: center;
 }
 
 .admin-hint {
   margin: 0;
-  color: var(--muted, #748078);
-  font-size: 0.85rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .admin-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 14px 16px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: var(--radius-card, 20px);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-xs);
 }
 
 .admin-item strong {
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .admin-item small {
   display: block;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   margin-top: 2px;
 }
 
 .admin-item p {
   margin: 6px 0 0;
-  color: var(--muted, #748078);
-  font-size: 0.88rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .admin-item-actions {
@@ -118,83 +121,87 @@
 }
 
 .admin-item-actions button {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  padding: 8px 14px;
-  font-weight: 800;
-  font-size: 0.84rem;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 9px 16px;
+  font-weight: 700;
+  font-size: var(--text-xs, 0.8125rem);
   cursor: pointer;
 }
 
 .admin-item-actions button.approve {
-  background: var(--accent, #ff6b4a);
+  background: linear-gradient(135deg, var(--accent, #d94e34), var(--accent-deep, #b83b22));
   color: #fff;
 }
 
 .admin-item-actions button.reject {
-  background: var(--sage-pale, #e6efe6);
-  color: var(--sage-dark, #5f7d6a);
+  background: var(--sage-pale, #e6f0ea);
+  color: var(--sage-dark, #2b503c);
 }
 
 .admin-gem {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 16px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: var(--radius-card, 20px);
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
 }
 
 .admin-gem label {
   display: grid;
   gap: 6px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm, 0.875rem);
   font-weight: 700;
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .admin-gem input {
+  min-height: 44px;
   font: inherit;
   font-weight: 500;
-  padding: 9px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 30%, transparent);
-  background: var(--cream, #f9f6f0);
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong, rgba(28, 40, 34, 0.14));
+  background: var(--cream, #faf8f4);
 }
 
 .admin-cta {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  padding: 10px 18px;
-  font-weight: 800;
-  font-size: 0.9rem;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 10px 20px;
+  font-weight: 700;
+  font-size: var(--text-sm, 0.875rem);
   cursor: pointer;
-  background: var(--accent, #ff6b4a);
+  background: linear-gradient(135deg, var(--accent, #d94e34), var(--accent-deep, #b83b22));
   color: #fff;
   text-decoration: none;
   width: fit-content;
 }
 
 .admin-cta:disabled {
-  background: var(--sage-pale, #e6efe6);
-  color: var(--muted, #748078);
+  background: var(--sage-pale, #e6f0ea);
+  color: var(--muted, #526158);
   cursor: not-allowed;
 }
 
 .admin-audit-row small {
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
 }
 
 /* Admin nav chip in the top bar */
 .admin-nav-button {
-  color: var(--accent-deep, #e8543a) !important;
+  color: var(--accent-deep, #b83b22) !important;
 }
 
 /* ── Home banner for the Hidden Gem of the Week ───────────────────────── */
@@ -202,24 +209,32 @@
 .hidden-gem-banner {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: linear-gradient(100deg, var(--sage-pale, #e6efe6), var(--accent-soft, #ffe6de));
-  border: 1px solid color-mix(in srgb, var(--accent, #ff6b4a) 30%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 12px 16px;
-  margin-bottom: 14px;
+  gap: 14px;
+  background: linear-gradient(110deg, var(--sage-pale, #e6f0ea) 0%, var(--accent-soft, #fff0ec) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent, #d94e34) 24%, transparent);
+  border-radius: var(--radius-card, 20px);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hidden-gem-banner:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
 }
 
 .hidden-gem-banner .gem-icon {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
 }
 
 .hidden-gem-banner strong {
   display: block;
-  color: var(--night, #0c120e);
-  font-size: 0.92rem;
+  color: var(--slate, #1c2822);
+  font-size: var(--text-base, 0.95rem);
 }
 
 .hidden-gem-banner small {
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
+  font-size: var(--text-xs, 0.8125rem);
 }

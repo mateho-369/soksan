@@ -39,9 +39,9 @@ to render — none is tracking:
    no cookies, no registration. Attribution is shown on the map.
 2. **Cloudflare R2** — storage for media you upload (production only).
 
-**Fonts are self-hosted** (Bricolage Grotesque, Manrope and the Khmer
-typeface Hanuman ship from our own origin as woff2). There are no
-requests to Google, no font CDNs, and no other third-party origins.
+**Fonts are self-hosted** (Inter, Kantumruy Pro, Bricolage Grotesque,
+and the Khmer typeface Hanuman ship from our own origin as woff2). There
+are no requests to Google, no font CDNs, and no other third-party origins.
 
 សកសានប្រើសេវាកម្មខាងក្រៅតែ ២ ប៉ុណ្ណោះ — ផែនទីបើកចំហ
 (OpenFreeMap) និងកន្លែងរក្សាទុកមេឌា (Cloudflare R2)។ ពុម្ពអក្សរ
