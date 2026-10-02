@@ -1117,19 +1117,29 @@ h1, h2, h3,
 }
 
 .facebook-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   padding: 8px 12px 12px;
   gap: 6px;
-  flex-wrap: wrap;
+}
+
+.font-kh .facebook-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .facebook-actions button {
-  min-height: 42px;
-  padding: 0 12px;
+  min-height: 44px;
+  height: auto;
+  width: 100%;
+  padding: 8px 10px;
   border-radius: 12px;
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--slate-soft);
   gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
 }
 
@@ -1139,10 +1149,11 @@ h1, h2, h3,
 }
 
 .facebook-actions .facebook-book {
+  grid-column: 1 / -1;
   background: linear-gradient(135deg, var(--sage), var(--sage-dark));
   color: #ffffff;
   border-radius: var(--radius-pill);
-  padding: 0 16px;
+  padding: 10px 16px;
   box-shadow: var(--shadow-sage);
 }
 
@@ -1367,7 +1378,7 @@ h1, h2, h3,
 }
 
 .composer-details {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
@@ -1403,6 +1414,10 @@ h1, h2, h3,
   font-size: 15px;
   font-weight: 500;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.composer-details > select:last-of-type {
+  grid-column: 1 / -1;
 }
 
 .composer-details select:focus {
@@ -1674,10 +1689,244 @@ h1, h2, h3,
   font-size: 15px;
 }
 
-/* ── 7. Mobile Viewport Polish (≤760px) ──────────────────────────────── */
-@media (max-width: 760px) {
+/* ── 7. Desktop, iPad/Tablet, and Phone Multi-Device Overhaul ────────── */
+
+/* 7A. Desktop / Computer (1051px–1440px+): Prevent Topbar Crushing & Fix Secondary Pages */
+.nav-shell {
+  gap: clamp(10px, 1.3vw, 20px);
+  width: min(1380px, 100% - 32px);
+}
+
+.desktop-links {
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.desktop-links a {
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 8px 11px;
+}
+
+.nav-search {
+  min-width: 150px;
+  max-width: 320px;
+}
+
+@media (max-width: 1340px) {
+  .desktop-links a:nth-child(7),
+  .desktop-links a:nth-child(8) {
+    display: none;
+  }
+  .merchant-nav-button span {
+    display: none;
+  }
+  .merchant-nav-button {
+    padding: 0 11px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .desktop-links a:nth-child(6) {
+    display: none;
+  }
+}
+
+/* Secondary Pages Typography & Touch Target Upgrade (Rankings, Partners, Profile, Merchant, Messages, PostViewer, Ads) */
+.ranking-hero p,
+.partners-hero p,
+.merchant-hero p,
+.profile-summary > p,
+.services-section header p,
+.infeed-ad-copy p {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.ranking-hero-stat,
+.ranking-tabs button,
+.partner-filter-tabs button,
+.province-metrics,
+.province-rank-summary > div:nth-child(3) > span,
+.ranked-spot-copy > span,
+.ranked-spot-copy small,
+.fast-booking,
+.ranked-spot > button,
+.partner-trust-bar strong,
+.partner-trust-bar small,
+.partner-cover > span,
+.partner-name span,
+.partner-card-body > p,
+.partner-stats,
+.partner-card-actions a,
+.partner-card-actions button,
+.profile-identity span,
+.profile-identity > button,
+.profile-stats span,
+.badge-row span,
+.expertise-strip > div:last-child > div,
+.service-image span,
+.service-content > p,
+.service-content > div > span,
+.service-content button,
+.merchant-hero > button,
+.merchant-metrics small,
+.merchant-metrics em,
+.campaign-main span,
+.campaign-main strong,
+.campaign-main small,
+.campaign-stat small,
+.ad-label,
+.ad-copy small,
+.ad-copy p,
+.ad-copy a,
+.infeed-ad-image > span,
+.infeed-ad-copy > div span,
+.infeed-ad-copy > div small,
+.infeed-ad-copy a,
+.conversation-copy strong,
+.conversation-copy time,
+.conversation-copy p,
+.conversation-copy small,
+.chat-header strong,
+.chat-header small,
+.conversation-day,
+.chat-filters button,
+.composer-tools .share-place-button,
+.share-itinerary-button,
+.shared-place span,
+.shared-place small,
+.shared-place button,
+.shared-place a,
+.shared-itinerary span,
+.itinerary-stops small,
+.shared-itinerary button,
+.viewer-overlay-author span,
+.viewer-overlay-author > button,
+.viewer-meta-overlay > p,
+.viewer-meta-overlay > span,
+.viewer-floating-actions > button b,
+.viewer-comment-drawer > header span,
+.no-comments strong,
+.free-access-notice p,
+.free-access-points,
+.contact-actions button,
+.contact-actions a,
+.contact-actions small {
+  font-size: var(--text-xs);
+}
+
+.ranking-tabs button,
+.partner-filter-tabs button,
+.chat-filters button {
+  min-height: 42px;
+  padding: 8px 16px;
+  font-weight: 600;
+}
+
+.partner-card-actions a,
+.partner-card-actions button,
+.service-content button,
+.profile-owner-actions > button,
+.contact-actions button,
+.contact-actions a,
+.merchant-hero > button,
+.partners-hero > div:first-child button,
+.infeed-ad-copy a {
+  min-height: 42px;
+  padding: 8px 14px;
+  border-radius: 12px;
+}
+
+.conversation-sidebar > header > button,
+.composer-input button,
+.place-picker header button,
+.checkout-info header button,
+.boost-modal > header > button,
+.partner-register-modal > header > button,
+.viewer-comment-drawer > header > button {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.composer-input {
+  min-height: 48px;
+  height: auto;
+  padding: 4px 8px 4px 14px;
+}
+
+/* 7B. iPad & Tablet Polish (761px – 1050px) */
+@media (min-width: 761px) and (max-width: 1050px) {
   .social-home {
-    padding: 0 12px calc(98px + var(--safe-bottom));
+    padding: 20px 16px calc(104px + var(--safe-bottom));
+  }
+
+  /* Discover split view on iPad: prevent bottom dock from overlapping map card & list */
+  .discover-panel {
+    padding: 22px 18px calc(98px + var(--safe-bottom));
+  }
+
+  .destination-card {
+    grid-template-columns: 92px 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .destination-card > img {
+    width: 92px;
+    height: 104px;
+  }
+
+  .map-preview {
+    bottom: calc(92px + var(--safe-bottom));
+    left: 16px;
+    width: min(380px, calc(100% - 32px));
+  }
+
+  /* Clips on iPad: keep caption & actions above the floating bottom nav */
+  .clip-copy {
+    bottom: calc(92px + var(--safe-bottom));
+  }
+
+  .clip-actions {
+    bottom: calc(96px + var(--safe-bottom));
+  }
+
+  /* Messages on iPad: reserve bottom dock clearance */
+  .app-main.route-messages .messages-page {
+    height: calc(100dvh - var(--chrome-h) - 96px);
+  }
+
+  .conversation-sidebar {
+    width: 280px;
+  }
+
+  .messages-page {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+/* 7C. Phone & Mobile Polish (≤760px) */
+@media (max-width: 760px) {
+  /* Restore SokSan brand title on mobile topbar (hide Khmer subtitle only on narrow phones) */
+  .brand-lockup div {
+    display: flex !important;
+    align-items: baseline;
+    gap: 5px;
+  }
+
+  .brand-lockup strong {
+    font-size: 17px;
+  }
+
+  .brand-lockup span {
+    font-size: 12px;
+  }
+
+  .social-home {
+    padding: 0 12px calc(102px + var(--safe-bottom));
   }
 
   .post-composer,
@@ -1686,11 +1935,17 @@ h1, h2, h3,
     border: 1px solid var(--border-subtle);
   }
 
+  /* Clean 3x2 symmetrical action grid on mobile phones */
+  .facebook-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px 10px 12px;
+  }
+
   .facebook-actions button {
     font-size: var(--text-xs);
-    min-height: 42px;
-    padding: 0 10px;
-    flex: 1 1 auto;
+    min-height: 44px;
+    padding: 6px 8px;
   }
 
   .composer-details {
@@ -1701,6 +1956,22 @@ h1, h2, h3,
   .composer-details select,
   .composer-details > select {
     font-size: 16px;
+  }
+
+  /* Mobile bottom nav: smooth horizontal snap with 44px+ targets */
+  .mobile-bottom-nav {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    transform: none;
+    scroll-snap-type: x proximity;
+    padding: 4px 6px;
+  }
+
+  .mobile-bottom-nav a {
+    flex: 1 0 56px;
+    scroll-snap-align: center;
+    font-size: 10.5px;
   }
 
   .mobile-sheet-trigger {
@@ -1716,5 +1987,52 @@ h1, h2, h3,
   .map-preview {
     bottom: calc(92px + var(--safe-bottom));
   }
+
+  /* Restore readable button labels on Profile mobile header */
+  .profile-identity {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .profile-owner-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .profile-owner-actions .merchant-center-link,
+  .profile-owner-actions > button:last-child {
+    font-size: var(--text-xs);
+    padding: 10px 14px;
+    min-height: 44px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* PostViewer & Messages mobile touch targets */
+  .media-only-viewer .viewer-close,
+  .media-only-viewer .viewer-fullscreen {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chat-back {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid !important;
+    place-items: center;
+  }
+
+  .message-composer {
+    padding-bottom: calc(88px + var(--safe-bottom));
+  }
 }
+
+@media (max-width: 430px) {
+  .brand-lockup span {
+    display: none;
+  }
+}
+
 
