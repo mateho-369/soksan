@@ -171,6 +171,39 @@ export default function Clips() {
     if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
   }, []);
 
+  // Keyboard navigation for 1-up vertical snap feed (ArrowDown/j, ArrowUp/k, m for mute)
+  useEffect(() => {
+    if (commentPostId !== null || clips.length === 0) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      const currentIndex = Math.max(0, clips.findIndex((c) => c.id === activeId));
+      if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'j') {
+        event.preventDefault();
+        const nextClip = clips[Math.min(clips.length - 1, currentIndex + 1)];
+        if (nextClip) {
+          setActiveId(nextClip.id);
+          const slideEl = stageRef.current?.querySelector<HTMLElement>(`[data-slide="${nextClip.id}"]`);
+          slideEl?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        }
+      } else if (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'k') {
+        event.preventDefault();
+        const prevClip = clips[Math.max(0, currentIndex - 1)];
+        if (prevClip) {
+          setActiveId(prevClip.id);
+          const slideEl = stageRef.current?.querySelector<HTMLElement>(`[data-slide="${prevClip.id}"]`);
+          slideEl?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        }
+      } else if (event.key === 'm' || event.key === 'M') {
+        setMuted((value) => !value);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeId, clips, commentPostId]);
+
   const interact = async (postId: number, action: 'like' | 'share' | 'save') => {
     if (!requireAuth(navigate)) return;
     const clip = clips.find((item) => item.id === postId);

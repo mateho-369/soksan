@@ -155,7 +155,6 @@ export default function Home() {
         body: JSON.stringify({ id: postId, action }),
       });
       if (!res.ok) throw new Error('Interaction failed');
-      await fetchFeed(false);
     } catch (err) {
       setPosts(snapshot);
       setError(err instanceof Error ? err.message : 'Interaction failed');
@@ -480,14 +479,16 @@ export default function Home() {
                         <span>
                           {post.like_count > 0 && (
                             <>
-                              💚 <AnimatedNumber value={post.like_count} />
+                              💚 <AnimatedNumber value={post.like_count} compact />
                             </>
                           )}
                         </span>
                         <button type="button" onClick={() => openViewer(post.id, true)}>
-                          {post.comment_count} {t('social.comments')}
+                          <AnimatedNumber value={post.comment_count} compact /> {t('social.comments')}
                         </button>
-                        <span>{post.share_count} shares</span>
+                        <span>
+                          <AnimatedNumber value={post.share_count} compact /> shares
+                        </span>
                       </div>
 
                       <div className="facebook-actions">

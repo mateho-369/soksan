@@ -2932,5 +2932,46 @@ h1, h2, h3,
   }
 }
 
+/* 8.7 60fps Hardware Acceleration, WCAG 2.2 Focus Not Obscured, Edge-Case Text Wrap & 4K Ultrawide */
+html {
+  scroll-padding-top: calc(var(--chrome-h) + 16px);
+  scroll-padding-bottom: calc(96px + var(--safe-bottom));
+}
+
+.clips-stage,
+.discover-panel,
+.viewer-comments,
+.chat-messages {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.facebook-caption p,
+.clip-copy p,
+.viewer-comments article p,
+.message-bubble > p,
+.destination-card p,
+.partner-card-body > p,
+.profile-summary > p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (min-width: 1920px) {
+  .nav-shell {
+    width: min(1640px, 100% - 64px);
+  }
+
+  .social-home.page-shell {
+    width: min(1600px, 100% - 64px);
+  }
+
+  .social-home-layout {
+    grid-template-columns: 310px minmax(560px, 760px) 340px;
+    gap: 32px;
+  }
+}
+
+
 
 
