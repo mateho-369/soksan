@@ -20,7 +20,7 @@ import {
   FolderHeart,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { ErrorState } from '../components/States';
+import { ErrorState, EmptyState } from '../components/States';
 import PostComposer from '../components/PostComposer';
 import PostViewer from '../components/PostViewer';
 import BoostModal from '../components/BoostModal';
@@ -30,7 +30,6 @@ import ShareCard from '../components/ShareCard';
 import { isSavedOffline, removeOffline, saveOffline } from '../lib/offlineStore';
 import { SidebarAd, InFeedAd } from '../components/SponsoredAd';
 import HiddenGemBanner from '../components/HiddenGemBanner';
-import { EmptyState } from '../components/States';
 import { useAuth } from '../contexts/AuthContext';
 import LikeButton from '../ui/LikeButton';
 import AnimatedNumber from '../ui/AnimatedNumber';
@@ -155,8 +154,6 @@ export default function Home() {
     } catch (err) {
       setPosts(snapshot);
       setError(err instanceof Error ? err.message : 'Interaction failed');
-    } finally {
-      /* optimistic update already applied */
     }
   };
 
@@ -219,27 +216,32 @@ export default function Home() {
       <div className="social-home-layout">
         <aside className="feed-left-rail">
           <div className="rail-profile">
-            <img src="/images/traveler-dara.jpg" alt="" />
+            <img src={user?.avatar_url || '/images/traveler-dara.jpg'} alt="" />
             <div>
-              <strong>Dara Sok</strong>
-              <span>Explore Cambodia</span>
+              <strong>{user ? (language === 'kh' && user.name_kh ? user.name_kh : user.name) : 'Dara Sok'}</strong>
+              <span>{language === 'kh' ? 'រុករកកម្ពុជា' : 'Explore Cambodia'}</span>
             </div>
           </div>
-          <nav>
-            <button className="active">
-              <Sparkles /> {t('social.forYou')}
+          <nav aria-label="Feed shortcuts">
+            <button type="button" className="active">
+              <Sparkles size={16} /> {t('social.forYou')}
             </button>
-            <button onClick={() => navigate('/clips')}>
-              <Play /> {t('navigation.clips')}
+            <button type="button" onClick={() => navigate('/clips')}>
+              <Play size={16} /> {t('navigation.clips')}
             </button>
-            <button onClick={() => navigate('/partners')}>
-              <Users /> {t('navigation.partners')}
+            <button type="button" onClick={() => navigate('/partners')}>
+              <Users size={16} /> {t('navigation.partners')}
             </button>
           </nav>
           <div className="rail-categories">
             <span>{t('social.exploreByMood')}</span>
             {categories.slice(0, 7).map((category) => (
-              <button key={category.id} onClick={() => setActiveCategory(category.slug)}>
+              <button
+                type="button"
+                key={category.id}
+                className={activeCategory === category.slug ? 'active' : ''}
+                onClick={() => setActiveCategory(category.slug)}
+              >
                 {category.emoji}
                 <span>{language === 'kh' ? category.label_kh : category.label_en}</span>
               </button>
@@ -251,13 +253,13 @@ export default function Home() {
           <header className="social-feed-heading">
             <div>
               <span className="eyebrow">
-                <Sparkles /> {t('social.communityFeed')}
+                <Sparkles size={14} /> {t('social.communityFeed')}
               </span>
               <h1>{t('feed.title')}</h1>
               <p>{t('feed.subtitle')}</p>
             </div>
-            <button onClick={() => navigate('/clips')}>
-              <Play /> {t('social.watchClips')}
+            <button type="button" onClick={() => navigate('/clips')}>
+              <Play size={15} /> {t('social.watchClips')}
             </button>
           </header>
 
@@ -265,17 +267,19 @@ export default function Home() {
           <HiddenGemBanner />
 
           {query && (
-            <div className="search-result-note">
-              <Search /> {t('social.resultsFor')}{' '}
-              <strong>“{query}”</strong>
-              <button onClick={() => navigate('/')}>Clear</button>
+            <div className="search-result-note" role="status">
+              <Search size={15} /> {t('social.resultsFor')} <strong>“{query}”</strong>
+              <button type="button" onClick={() => navigate('/')}>
+                Clear
+              </button>
             </div>
           )}
 
           <PostComposer categories={categories} provinces={provinces} onPosted={() => fetchFeed(false)} />
 
-          <div className="category-scroller social-category-scroller">
+          <div className="category-scroller social-category-scroller" role="toolbar" aria-label="Filter by category">
             <motion.button
+              type="button"
               {...pressable}
               className={activeCategory ? '' : 'active'}
               onClick={() => setActiveCategory('')}
@@ -284,6 +288,7 @@ export default function Home() {
             </motion.button>
             {categories.map((category) => (
               <motion.button
+                type="button"
                 {...pressable}
                 key={category.id}
                 className={activeCategory === category.slug ? 'active' : ''}
@@ -333,30 +338,37 @@ export default function Home() {
                       transition={{ ...springs.gentle, delay: Math.min(index * 0.06, 0.3) }}
                     >
                       <header className="post-author">
-                        <img src={post.author.avatar_url} alt="" />
+                        <img src={post.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                         <div>
                           <div className="author-name">
-                            {language === 'kh' && post.author.name_kh ? post.author.name_kh : post.author.name}
-                            {post.author.verified && <BadgeCheck />}
+                            <span>{language === 'kh' && post.author.name_kh ? post.author.name_kh : post.author.name}</span>
+                            {post.author.verified && <BadgeCheck size={15} aria-label="Verified" />}
                             <button
+                              type="button"
                               className={`inline-follow ${post.author.is_following ? 'following' : ''}`}
                               onClick={() => toggleFollow(post.author.id)}
                             >
                               · {post.author.is_following ? t('social.following') : t('social.follow')}
                             </button>
                           </div>
-                          <button onClick={() => navigate(`/discover?q=${encodeURIComponent(post.location_name)}`)}>
-                            <MapPin />
-                            {post.location_name}, {post.province} · {new Date(post.created_at).toLocaleDateString()}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/discover?q=${encodeURIComponent(post.location_name)}`)}
+                          >
+                            <MapPin size={13} />
+                            <span>
+                              {post.location_name}, {post.province} · {new Date(post.created_at).toLocaleDateString()}
+                            </span>
                           </button>
                         </div>
                         <button
+                          type="button"
                           className={`save-button ${post.is_saved ? 'saved' : ''}`}
                           aria-pressed={Boolean(post.is_saved)}
                           aria-label={t('social.save')}
                           onClick={() => interact(post.id, 'save')}
                         >
-                          <Bookmark fill={post.is_saved ? 'currentColor' : 'none'} />
+                          <Bookmark size={19} fill={post.is_saved ? 'currentColor' : 'none'} />
                         </button>
                       </header>
 
@@ -364,6 +376,7 @@ export default function Home() {
                         <p className={isExpanded ? '' : 'caption-clamped'}>{caption}</p>
                         {caption.length > 145 && (
                           <button
+                            type="button"
                             onClick={() =>
                               setExpanded((ids) =>
                                 ids.includes(post.id) ? ids.filter((id) => id !== post.id) : [...ids, post.id],
@@ -373,14 +386,19 @@ export default function Home() {
                             {t(isExpanded ? 'common.seeLess' : 'common.seeMore')}
                           </button>
                         )}
-                        <span>{post.hashtags}</span>
+                        {post.hashtags && <span>{post.hashtags}</span>}
                       </div>
 
-                      <button className="facebook-media" onClick={() => openViewer(post.id, false)}>
+                      <button
+                        type="button"
+                        className="facebook-media"
+                        onClick={() => openViewer(post.id, false)}
+                        aria-label={`View media for ${post.location_name}`}
+                      >
                         {currentMedia.media_type === 'video' ? (
                           <video src={currentMedia.media_url} muted playsInline preload="metadata" />
                         ) : (
-                          <img src={currentMedia.media_url} alt={post.location_name} />
+                          <img src={currentMedia.media_url} alt={post.location_name} loading="lazy" />
                         )}
                         <span className="image-wash" />
                         {currentMedia.media_type === 'video' && (
@@ -400,25 +418,31 @@ export default function Home() {
                       {media.length > 1 && (
                         <div className="feed-carousel-controls">
                           <button
+                            type="button"
                             disabled={mediaIndex === 0}
+                            aria-label="Previous photo"
                             onClick={() => setMediaIndexes((state) => ({ ...state, [post.id]: mediaIndex - 1 }))}
                           >
-                            <ChevronLeft />
+                            <ChevronLeft size={16} />
                           </button>
                           <div>
                             {media.map((item, itemIndex) => (
                               <button
+                                type="button"
                                 key={item.id}
                                 className={mediaIndex === itemIndex ? 'active' : ''}
+                                aria-label={`Slide ${itemIndex + 1}`}
                                 onClick={() => setMediaIndexes((state) => ({ ...state, [post.id]: itemIndex }))}
                               />
                             ))}
                           </div>
                           <button
+                            type="button"
                             disabled={mediaIndex === media.length - 1}
+                            aria-label="Next photo"
                             onClick={() => setMediaIndexes((state) => ({ ...state, [post.id]: mediaIndex + 1 }))}
                           >
-                            <ChevronRight />
+                            <ChevronRight size={16} />
                           </button>
                         </div>
                       )}
@@ -431,7 +455,7 @@ export default function Home() {
                             </>
                           )}
                         </span>
-                        <button onClick={() => openViewer(post.id, true)}>
+                        <button type="button" onClick={() => openViewer(post.id, true)}>
                           {post.comment_count} {t('social.comments')}
                         </button>
                         <span>{post.share_count} shares</span>
@@ -445,44 +469,47 @@ export default function Home() {
                           size="md"
                           label={t('social.like')}
                         />
-                        <button onClick={() => openViewer(post.id, true)}>
-                          <MessageCircle /> {t('social.comment')}
+                        <button type="button" onClick={() => openViewer(post.id, true)}>
+                          <MessageCircle size={17} /> <span>{t('social.comment')}</span>
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
-                            // Phase 8 — the branded postcard is a public
-                            // share action, so it always opens. The share
-                            // counter only increments for signed-in users
-                            // (interact is auth-gated server-side).
                             setSharePost(post);
                             if (user) void interact(post.id, 'share');
                           }}
                         >
-                          <Send /> {t('social.share')}
+                          <Send size={16} /> <span>{t('social.share')}</span>
                         </button>
                         {/* Phase 6 — save this place into a shareable trip. */}
-                        <button onClick={() => pickTrip(post)} aria-label={t('trips.addLabel')}>
-                          <ListPlus /> {t('trips.addShort')}
+                        <button type="button" onClick={() => pickTrip(post)} aria-label={t('trips.addLabel')}>
+                          <ListPlus size={17} /> <span>{t('trips.addShort')}</span>
                         </button>
                         {/* Phase 7 — curate into a public collection. */}
-                        <button onClick={() => collect(post)} aria-label={t('collections.addLabel')}>
-                          <FolderHeart /> {t('collections.addShort')}
+                        <button type="button" onClick={() => collect(post)} aria-label={t('collections.addLabel')}>
+                          <FolderHeart size={16} /> <span>{t('collections.addShort')}</span>
                         </button>
                         {/* Phase 6 — keep this post readable with no signal. */}
                         <button
+                          type="button"
                           className={isSavedOffline(post.id) ? 'offline-saved' : ''}
                           aria-pressed={offlineTick >= 0 && isSavedOffline(post.id)}
                           onClick={() => toggleOffline(post)}
                         >
-                          <HardDriveDownload /> {t('offline.saveShort')}
+                          <HardDriveDownload size={16} /> <span>{t('offline.saveShort')}</span>
                         </button>
                         {post.business_name && (
-                          <button className="facebook-book" onClick={() => navigate('/profile')}>
+                          <button type="button" className="facebook-book" onClick={() => navigate('/profile')}>
                             {t('feed.exploreBook')}
                           </button>
                         )}
-                        <button className="facebook-boost" onClick={() => setBoostPost(post)}>
-                          <Zap />
+                        <button
+                          type="button"
+                          className="facebook-boost"
+                          aria-label="Boost story"
+                          onClick={() => setBoostPost(post)}
+                        >
+                          <Zap size={16} />
                         </button>
                       </div>
                     </motion.article>
@@ -505,7 +532,11 @@ export default function Home() {
             <h3>{t('social.everyProvince')}</h3>
             <div>
               {provinces.slice(0, 4).map((province) => (
-                <button key={province.id} onClick={() => navigate(`/discover?q=${province.name}`)}>
+                <button
+                  type="button"
+                  key={province.id}
+                  onClick={() => navigate(`/discover?q=${province.name}`)}
+                >
                   <span>{province.icon}</span>
                   <strong>{language === 'kh' ? province.name_kh : province.name}</strong>
                   <small>{province.explorers?.toLocaleString()} explorers</small>

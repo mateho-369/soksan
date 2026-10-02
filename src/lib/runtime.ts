@@ -49,13 +49,11 @@ export function assertProductionRuntime(): void {
   }
   const base = env.VITE_API_BASE_URL;
   if (!base) {
-    // eslint-disable-next-line no-console
     console.warn(
       '[SokSan] VITE_API_BASE_URL is not set; assuming the web server proxies ' +
         '/api/v1 to the Laravel API (see docs/DEPLOYMENT.md). Set it explicitly to silence this warning.',
     );
   } else if (base.startsWith('http://') && !base.startsWith('http://localhost')) {
-    // eslint-disable-next-line no-console
     console.warn('[SokSan] VITE_API_BASE_URL uses plain http:// — production must use https://.');
   }
 }

@@ -86,7 +86,7 @@ describe('notification inbox (Phase 1 hardening)', () => {
   });
 
   it('notifications can be marked read individually and in bulk', async () => {
-    const viewer = await register('Reader Rith', 'reader.rith@example.com');
+    await register('Reader Rith', 'reader.rith@example.com');
     const postId = await daraPostId();
 
     // Two likers create two unread notifications for Dara.

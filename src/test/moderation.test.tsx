@@ -43,7 +43,6 @@ describe('reporting (Phase 0 hardening)', () => {
 
   it('rejects unknown reasons, self-reports and duplicates', async () => {
     const token = await register('Reporter B', 'reporter.b@example.com');
-    const auth = { Authorization: `Bearer ${token}` };
 
     const badReason = await apiFetch('/reports', {
       method: 'POST',

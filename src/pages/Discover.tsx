@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LoadingState, ErrorState, EmptyState } from '../components/States';
+import { ErrorState, EmptyState } from '../components/States';
+import { DestinationListSkeleton } from '../ui/Skeleton';
 import SokSanMap from '../components/map/SokSanMap';
 import TrendingRail from '../components/TrendingRail';
 import { isInsideCambodia, type LatLng } from '../lib/mapConfig';
@@ -22,12 +23,13 @@ function DestinationList({ destinations, selectedId, language, onSelect }: Desti
     <div className="destination-list">
       {destinations.map((destination, index) => (
         <motion.button
+          type="button"
           key={destination.id}
           className={`destination-card ${selectedId === destination.id ? 'selected' : ''}`}
           onClick={() => onSelect(destination.id)}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: index * 0.04 }}
         >
           <img src={destination.image_url} alt={destination.name} loading="lazy" />
           <div className="destination-card-body">
@@ -121,7 +123,6 @@ export default function Discover() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
-        // Stay honest to the launch region: ignore positions far outside it.
         if (!isInsideCambodia(point)) return;
         setFocus({ ...point, token: Date.now() });
       },
@@ -156,7 +157,7 @@ export default function Discover() {
         {/* Phase 6 — recency-weighted hot posts, refreshed per visit. */}
         <TrendingRail />
         <div className="discover-filters">
-          <Search size={17} />
+          <Search size={17} aria-hidden="true" />
           <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter places">
             <option value="">{t('allPlaces')}</option>
             {categories.map((item) => (
@@ -165,14 +166,14 @@ export default function Discover() {
               </option>
             ))}
           </select>
-          <ChevronDown size={16} />
+          <ChevronDown size={16} aria-hidden="true" />
         </div>
         <div className="result-count">
           <strong>{destinations.length}</strong> {t('nearby')}
           <span>{t('budget')} · USD</span>
         </div>
         {loading ? (
-          <LoadingState compact />
+          <DestinationListSkeleton count={4} />
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
         ) : destinations.length === 0 ? (
@@ -191,8 +192,8 @@ export default function Discover() {
           focus={focus}
           ariaLabel={t('map.discoverLabel')}
         />
-        <button className="locate-button" onClick={locateMe}>
-          <LocateFixed size={19} /> <span>Near me</span>
+        <button type="button" className="locate-button" onClick={locateMe}>
+          <LocateFixed size={18} /> <span>Near me</span>
         </button>
         {selected && (
           <motion.article
@@ -211,21 +212,39 @@ export default function Discover() {
                 {selected.province} · ${selected.budget_min}–${selected.budget_max}
               </p>
             </div>
-            <button aria-label="Close" onClick={() => setSelectedId(null)}>
+            <button type="button" aria-label="Close" onClick={() => setSelectedId(null)}>
               <X size={17} />
             </button>
           </motion.article>
         )}
-        <button className="mobile-sheet-trigger" onClick={() => setSheetOpen(true)}>
-          <span />
+        <button
+          type="button"
+          className="mobile-sheet-trigger"
+          onClick={() => setSheetOpen(true)}
+          aria-expanded={sheetOpen}
+        >
+          <span aria-hidden="true" />
           <strong>
             {destinations.length} {t('nearby')}
           </strong>
           <small>Swipe up to explore</small>
         </button>
+        {sheetOpen && (
+          <button
+            type="button"
+            className="mobile-sheet-backdrop"
+            aria-label="Close destinations list"
+            onClick={() => setSheetOpen(false)}
+          />
+        )}
         <div className={`mobile-destination-sheet ${sheetOpen ? 'open' : ''}`}>
-          <button className="sheet-handle" onClick={() => setSheetOpen(false)}>
-            <span />
+          <button
+            type="button"
+            className="sheet-handle"
+            aria-label="Collapse sheet"
+            onClick={() => setSheetOpen(false)}
+          >
+            <span aria-hidden="true" />
           </button>
           <div className="sheet-title">
             <div>
@@ -234,12 +253,12 @@ export default function Discover() {
                 {destinations.length} {t('nearby')}
               </small>
             </div>
-            <button onClick={() => setSheetOpen(false)}>
-              <X />
+            <button type="button" aria-label="Close places sheet" onClick={() => setSheetOpen(false)}>
+              <X size={17} />
             </button>
           </div>
           {loading ? (
-            <LoadingState compact />
+            <DestinationListSkeleton count={3} />
           ) : destinations.length === 0 ? (
             <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
           ) : (

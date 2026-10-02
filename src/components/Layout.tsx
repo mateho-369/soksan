@@ -44,6 +44,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Keep <html lang="..."> synced for screen readers and bilingual CSS rules
+  useEffect(() => {
+    document.documentElement.lang = language === 'kh' ? 'km' : 'en';
+  }, [language]);
+
   useEffect(() => {
     apiFetch('/ads?placement=top_banner')
       .then((res) => (res.ok ? res.json() : []))
@@ -85,35 +90,53 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className={language === 'kh' ? 'font-kh' : ''}>
+    <div
+      lang={language === 'kh' ? 'km' : 'en'}
+      data-lang={language}
+      className={language === 'kh' ? 'font-kh kh' : 'font-en'}
+    >
       <header className="topbar">
         <div className="nav-shell">
-          <NavLink to="/" className="brand-link">
+          <NavLink to="/" className="brand-link" aria-label="SokSan Network Home">
             <Brand />
           </NavLink>
-          <nav className="desktop-links">
+          <nav className="desktop-links" aria-label="Primary navigation">
             {links.slice(0, 5).map(({ to, label }) => (
               <MotionNavLink key={to} to={to} end={to === '/'} {...pressable}>
                 {label}
               </MotionNavLink>
             ))}
             <MotionNavLink to="/rankings" {...pressable}>
-              <Trophy /> <span>{t('navigation.rankings')}</span>
+              <Trophy size={15} /> <span>{t('navigation.rankings')}</span>
             </MotionNavLink>
             <MotionNavLink to="/trips" {...pressable}>
-              <Map /> <span>{t('navigation.trips')}</span>
+              <Map size={15} /> <span>{t('navigation.trips')}</span>
             </MotionNavLink>
             <MotionNavLink to="/collections" {...pressable}>
-              <FolderHeart /> <span>{t('navigation.collections')}</span>
+              <FolderHeart size={15} /> <span>{t('navigation.collections')}</span>
             </MotionNavLink>
           </nav>
-          <form className="nav-search" onSubmit={submitSearch}>
-            <Search size={18} />
+          <form className="nav-search" role="search" onSubmit={submitSearch}>
+            <Search size={17} aria-hidden="true" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
             />
+            {query && (
+              <button
+                type="button"
+                className="nav-search-clear"
+                onClick={() => {
+                  setQuery('');
+                  if (location.search.includes('q=')) navigate('/');
+                }}
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </form>
           <div className="nav-actions">
             <NavLink
@@ -122,25 +145,31 @@ export default function Layout({ children }: { children: ReactNode }) {
               aria-label={t('offline.title')}
               title={t('offline.title')}
             >
-              <HardDriveDownload size={17} />
+              <HardDriveDownload size={18} />
             </NavLink>
             <NavLink to="/merchant" className="merchant-nav-button">
-              <Megaphone />
+              <Megaphone size={16} />
               <span>{t('navigation.merchant')}</span>
             </NavLink>
             {/* Phase 5: admin entry point, visible only to role:admin. */}
             {user?.role === 'admin' && (
               <NavLink to="/admin" className="merchant-nav-button admin-nav-button">
-                <ShieldCheck />
+                <ShieldCheck size={16} />
                 <span>{t('navigation.admin')}</span>
               </NavLink>
             )}
             {user ? (
               <div className="auth-chip">
                 <StreakChip />
-                <img src={user.avatar_url} alt="" />
+                <img src={user.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                 <span className="auth-chip-name">{language === 'kh' && user.name_kh ? user.name_kh : user.name}</span>
-                <button className="icon-button" onClick={() => logout()} aria-label={t('auth.logout')} title={t('auth.logout')}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => logout()}
+                  aria-label={t('auth.logout')}
+                  title={t('auth.logout')}
+                >
                   <LogOut size={17} />
                 </button>
               </div>
@@ -156,19 +185,38 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </NavLink>
               </div>
             )}
-            <button className="icon-button mobile-only" onClick={() => setMobileSearchOpen(true)}>
-              <Search size={20} />
+            <button
+              type="button"
+              className="icon-button mobile-only"
+              onClick={() => setMobileSearchOpen(true)}
+              aria-label={language === 'kh' ? 'បើកការស្វែងរក' : 'Open search'}
+            >
+              <Search size={19} />
             </button>
-            <button className="icon-button notification-button">
-              <Bell size={20} />
-              <span />
+            <button
+              type="button"
+              className="icon-button notification-button"
+              aria-label={language === 'kh' ? 'ការជូនដំណឹង' : 'Notifications'}
+            >
+              <Bell size={19} />
+              <span aria-hidden="true" />
             </button>
             <div className="language-switch" role="group" aria-label="Language">
-              <button className={language === 'kh' ? 'active' : ''} onClick={() => setLanguage('kh')}>
+              <button
+                type="button"
+                className={language === 'kh' ? 'active' : ''}
+                aria-pressed={language === 'kh'}
+                onClick={() => setLanguage('kh')}
+              >
                 KH
               </button>
-              <i />
-              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>
+              <i aria-hidden="true" />
+              <button
+                type="button"
+                className={language === 'en' ? 'active' : ''}
+                aria-pressed={language === 'en'}
+                onClick={() => setLanguage('en')}
+              >
                 EN
               </button>
             </div>
@@ -177,33 +225,42 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
 
       {bannerAd && bannerVisible && (
-        <div className="announcement-strip">
+        <div className="announcement-strip" role="region" aria-label="Featured announcement">
           <a href={bannerAd.target_url} target="_blank" rel="noreferrer">
-            <MapPinCheck />
+            <MapPinCheck size={15} aria-hidden="true" />
             <span>
               <small>{language === 'kh' ? bannerAd.sponsor_kh : bannerAd.sponsor}</small>
               {language === 'kh' ? bannerAd.headline_kh : bannerAd.headline}
             </span>
             <b>{language === 'kh' ? bannerAd.cta_kh : bannerAd.cta}</b>
           </a>
-          <button onClick={() => setBannerVisible(false)}>
-            <X />
+          <button
+            type="button"
+            onClick={() => setBannerVisible(false)}
+            aria-label={language === 'kh' ? 'បិទការជូនដំណឹង' : 'Dismiss announcement'}
+          >
+            <X size={15} />
           </button>
         </div>
       )}
 
       {mobileSearchOpen && (
-        <div className="mobile-search-overlay">
+        <div className="mobile-search-overlay" role="dialog" aria-label={t('search.placeholder')}>
           <form onSubmit={submitSearch}>
-            <Search />
+            <Search size={18} aria-hidden="true" />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
             />
-            <button type="button" onClick={() => setMobileSearchOpen(false)}>
-              <X />
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(false)}
+              aria-label={language === 'kh' ? 'បិទការស្វែងរក' : 'Close search'}
+            >
+              <X size={16} />
             </button>
           </form>
         </div>
@@ -225,12 +282,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <nav className="mobile-bottom-nav social-mobile-nav">
+      <nav className="mobile-bottom-nav social-mobile-nav" aria-label="Mobile navigation">
         {links.map(({ to, label, icon: Icon }) => (
           <MotionNavLink key={to} to={to} end={to === '/'} {...pressable} transition={springs.snappy}>
             {({ isActive }) => (
               <>
-                <Icon />
+                <Icon size={20} />
                 <span>{label}</span>
                 {isActive && <motion.i className="nav-active-dot" layoutId="mobile-nav-dot" />}
               </>

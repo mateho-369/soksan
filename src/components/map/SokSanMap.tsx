@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Map as MapLibreMap, Marker, LngLatBounds } from 'maplibre-gl';
+import { Compass, Minus, Plus } from 'lucide-react';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
   CAMBODIA_BOUNDS,
@@ -197,13 +198,71 @@ export default function SokSanMap({
       .addTo(map);
   }, [pickedPoint, status]);
 
+  const adjustZoom = (delta: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const nextZoom = Math.min(CAMBODIA_MAX_ZOOM, Math.max(CAMBODIA_MIN_ZOOM, map.getZoom() + delta));
+    const currentCenter = (map as unknown as { getCenter?: () => { lng: number; lat: number } }).getCenter?.();
+    const targetCenter: [number, number] = currentCenter
+      ? [currentCenter.lng, currentCenter.lat]
+      : center;
+    map.jumpTo({ center: targetCenter, zoom: nextZoom });
+  };
+
+  const resetView = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (prefersReducedMotion()) {
+      map.jumpTo({ center: CAMBODIA_CENTER, zoom: CAMBODIA_ZOOM });
+    } else {
+      map.flyTo({ center: CAMBODIA_CENTER, zoom: CAMBODIA_ZOOM, duration: 650 });
+    }
+  };
+
   return (
     <div className={`soksan-map-shell ${className}`}>
       <div ref={containerRef} className="soksan-map-canvas" role="application" aria-label={ariaLabel} />
-      {status === 'loading' && <div className="soksan-map-status">Loading map…</div>}
+
+      <div className="soksan-map-controls" role="group" aria-label="Map controls">
+        <button
+          type="button"
+          className="soksan-map-fab"
+          onClick={() => adjustZoom(1)}
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <Plus size={18} />
+        </button>
+        <button
+          type="button"
+          className="soksan-map-fab"
+          onClick={() => adjustZoom(-1)}
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <Minus size={18} />
+        </button>
+        <button
+          type="button"
+          className="soksan-map-fab"
+          onClick={resetView}
+          aria-label="Reset Cambodia view"
+          title="Reset Cambodia view"
+        >
+          <Compass size={18} />
+        </button>
+      </div>
+
+      {status === 'loading' && (
+        <div className="soksan-map-status skel" role="status">
+          <span className="soksan-map-status-pill">Loading map…</span>
+        </div>
+      )}
       {status === 'error' && (
-        <div className="soksan-map-status" role="alert">
-          The map could not load. Check your connection and try again.
+        <div className="soksan-map-status error" role="alert">
+          <span className="soksan-map-status-pill">
+            The map could not load. Check your connection and try again.
+          </span>
         </div>
       )}
     </div>
