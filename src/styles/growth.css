@@ -1,0 +1,299 @@
+/* Phase 8 — Growth: branded share postcard, public post landing page,
+ * referral chip. Uses shared design tokens only. */
+
+/* ── Share postcard modal ────────────────────────────────────────────── */
+
+.share-card-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  background: rgba(12, 18, 14, 0.5);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.share-card {
+  width: min(420px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--cream, #f9f6f0);
+  border-radius: var(--radius-card, 18px);
+  padding: 18px;
+}
+
+.share-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.share-card header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--night, #0c120e);
+}
+
+.postcard {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 22%, transparent);
+  background: #fff;
+}
+
+.postcard-band {
+  background: var(--sage-dark, #5f7d6a);
+  color: #fff;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.postcard-band strong {
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.postcard-band span {
+  font-size: 0.72rem;
+  color: #dce9df;
+}
+
+.postcard-media img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+}
+
+.postcard-body {
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 4px;
+}
+
+.postcard-body strong {
+  color: var(--night, #0c120e);
+}
+
+.postcard-body p {
+  margin: 0;
+  color: var(--muted, #748078);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.postcard-body small {
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.postcard-body code {
+  color: var(--accent-deep, #e8543a);
+  font-weight: 700;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
+.share-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.share-card-actions button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  padding: 10px 14px;
+  font-weight: 800;
+  font-size: 0.84rem;
+  cursor: pointer;
+  background: var(--sage-pale, #e6efe6);
+  color: var(--sage-dark, #5f7d6a);
+}
+
+.share-card-actions button:first-child {
+  background: var(--accent, #ff6b4a);
+  color: #fff;
+}
+
+.share-card-actions button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.share-card-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted, #748078);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+/* ── Public post landing page (share deep link) ──────────────────────── */
+
+.post-public-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 72px;
+}
+
+.post-public-missing {
+  text-align: center;
+  padding: 48px 18px;
+  background: var(--sage-pale, #e6efe6);
+  border-radius: var(--radius-card, 18px);
+}
+
+.post-public-card {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
+  border-radius: var(--radius-card, 18px);
+  overflow: hidden;
+}
+
+.post-public-media img {
+  width: 100%;
+  max-height: 460px;
+  object-fit: cover;
+}
+
+.post-public-body {
+  padding: 20px 22px 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.post-public-body h1 {
+  margin: 4px 0 0;
+  font-size: 1.3rem;
+  line-height: 1.4;
+  color: var(--night, #0c120e);
+  font-family: var(--font-display, inherit);
+}
+
+.post-public-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-public-author img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.post-public-author small {
+  display: block;
+  color: var(--muted, #748078);
+}
+
+.post-public-stats {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--muted, #748078);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.post-public-stats li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.post-public-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.post-public-actions .share-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent, #ff6b4a);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+
+.post-public-actions a {
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 700;
+}
+
+/* ── Referral chip on the contributor card ───────────────────────────── */
+
+.contributor-referral {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--sage-pale, #e6efe6);
+  border-radius: 12px;
+  padding: 9px 12px;
+}
+
+.contributor-referral > svg {
+  color: var(--sage-dark, #5f7d6a);
+  flex-shrink: 0;
+}
+
+.contributor-referral div {
+  flex: 1;
+  min-width: 0;
+}
+
+.contributor-referral strong {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--night, #0c120e);
+}
+
+.contributor-referral small {
+  color: var(--muted, #748078);
+  font-size: 0.72rem;
+}
+
+.contributor-referral button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  background: #fff;
+  color: var(--sage-dark, #5f7d6a);
+  font-weight: 800;
+  font-size: 0.76rem;
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.auth-referral-note {
+  color: var(--muted, #748078);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
+/* Gem banner is now a link */
+a.hidden-gem-banner {
+  text-decoration: none;
+  color: inherit;
+}

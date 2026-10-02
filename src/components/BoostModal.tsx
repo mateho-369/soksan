@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -39,7 +40,7 @@ export default function BoostModal({ post, onClose, onComplete }: BoostModalProp
   useEffect(() => {
     if (!post) return;
     setLoading(true);
-    fetch('/api/boosts')
+    apiFetch('/boosts')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => setProvinces(data.provinces || []))
       .catch(() => setError('Could not load targeting regions'))
@@ -51,7 +52,7 @@ export default function BoostModal({ post, onClose, onComplete }: BoostModalProp
     setPaying(true);
     setError('');
     try {
-      const res = await fetch('/api/boosts', {
+      const res = await apiFetch('/boosts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +99,7 @@ export default function BoostModal({ post, onClose, onComplete }: BoostModalProp
                 </span>
                 <h2>{step === 'done' ? 'Your gem is being discovered' : 'Boost this local story'}</h2>
               </div>
-              <button onClick={onClose}>
+              <button onClick={onClose} aria-label="Close boost dialog">
                 <X />
               </button>
             </header>

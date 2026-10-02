@@ -1,19 +1,27 @@
 // Client-side API layer that mirrors the SokSan Network backend.
 // Intercepts fetch('/api/...') calls and serves the same JSON contracts
 // with in-memory state so every interaction works end to end.
-import postsSeed from '../data/posts.json';
-import categoriesSeed from '../data/categories.json';
-import adsSeed from '../data/ads.json';
-import destinationsSeed from '../data/destinations.json';
-import itinerariesSeed from '../data/itineraries.json';
-import profileSeed from '../data/profile.json';
-import servicesSeed from '../data/services.json';
-import contactsSeed from '../data/contacts.json';
-import conversationsSeed from '../data/conversations.json';
-import partnersSeed from '../data/partners.json';
-import boostsSeed from '../data/boosts.json';
-import rankingsSeed from '../data/rankings.json';
-import commentsSeed from '../data/comments.json';
+// ─── DEMO SEAM ────────────────────────────────────────────────────────────
+// All seed content lives in src/demo/ (see src/demo/README.md). Delete that
+// folder and this file when the real backend takes over.
+import { isSafetyTag, MAX_SAFETY_TAGS } from './safetyTags';
+import postsSeed from '../demo/data/posts.json';
+import categoriesSeed from '../demo/data/categories.json';
+import adsSeed from '../demo/data/ads.json';
+import destinationsSeed from '../demo/data/destinations.json';
+import itinerariesSeed from '../demo/data/itineraries.json';
+import profileSeed from '../demo/data/profile.json';
+import servicesSeed from '../demo/data/services.json';
+import contactsSeed from '../demo/data/contacts.json';
+import conversationsSeed from '../demo/data/conversations.json';
+import partnersSeed from '../demo/data/partners.json';
+import boostsSeed from '../demo/data/boosts.json';
+import rankingsSeed from '../demo/data/rankings.json';
+import geographySeed from '../demo/data/geography.json';
+import commentsSeed from '../demo/data/comments.json';
+import businessesSeed from '../demo/data/businesses.json';
+import leadEventsSeed from '../demo/data/lead_events.json';
+import type { Business, BusinessSubscription, KhqrInvoice, LeadEventType } from '../types';
 import type {
   Post,
   Comment,
@@ -35,6 +43,345 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const posts: Post[] = clone(postsSeed) as unknown as Post[];
 const categories = clone(categoriesSeed);
 const ads = clone(adsSeed);
+
+/**
+ * Phase 5 moderation pipeline: only `published` posts (or legacy posts
+ * with no status field) ever reach the public feed or clips.
+ */
+const visiblePosts = (): Post[] => posts.filter((p) => !p.status || p.status === 'published');
+
+/* ---------- Phase 0 hardening: location privacy (mirrors PostResource) ----
+ * Exact coordinates are sensitive. Public viewers get lat/lng rounded to the
+ * post's location_precision (4 ≈ 11m, 3 ≈ 110m, 2 ≈ 1.1km); the owner and
+ * admins see the exact point (PostPolicy::viewExactLocation). Sensitive
+ * posts are capped at 2 decimals. This is demo behaviour that the Laravel
+ * PostResource enforces for real.
+ */
+function roundCoord(value: number | null | undefined, precision: number): number | null {
+  if (value === null || value === undefined) return null;
+  return Number(value.toFixed(precision));
+}
+
+function publicPrecision(post: Post): number {
+  const precision = typeof post.location_precision === 'number' ? post.location_precision : 4;
+  return post.is_sensitive_location ? Math.min(precision, 2) : precision;
+}
+
+function withLocationPrivacy<T extends Post>(post: T, viewer: MockUser | null): T {
+  const isOwnerOrAdmin = viewer !== null && (viewer.id === post.profile_id || viewer.role === 'admin');
+  if (isOwnerOrAdmin) {
+    return { ...post, has_exact_location: post.lat !== null && post.lat !== undefined };
+  }
+  const precision = publicPrecision(post);
+  return {
+    ...post,
+    lat: roundCoord(post.lat, precision),
+    lng: roundCoord(post.lng, precision),
+    has_exact_location: false,
+  };
+}
+
+/* ---------- Phase 0 hardening: reports, blocks, mutes ------------------
+ * Mirrors ReportService/SafetyRelationService + config/moderation.php.
+ * Auto-hide is reversible: admins can re-publish from the queue. */
+const REPORT_REASONS = [
+  'spam',
+  'nudity',
+  'violence',
+  'scam',
+  'private_location',
+  'harassment',
+  'illegal',
+  'copyright',
+  'fake_place',
+  'other',
+] as const;
+const AUTO_HIDE_REPORTS = 3;
+
+interface ReportRow {
+  id: number;
+  reporter_id: number;
+  reportable_type: 'post' | 'comment';
+  reportable_id: number;
+  reason: string;
+  details: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'dismissed';
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+interface BlockRow {
+  id: number;
+  user_id: number;
+  blocked_user_id: number;
+}
+
+interface MuteRow {
+  id: number;
+  user_id: number;
+  muted_user_id: number;
+  muted_until: string | null;
+}
+
+const reportRows: ReportRow[] = [];
+const blockRows: BlockRow[] = [];
+const muteRows: MuteRow[] = [];
+let nextReportId = 1;
+let nextBlockId = 1;
+let nextMuteId = 1;
+
+const blockedBetween = (a: number, b: number): boolean =>
+  blockRows.some((r) => (r.user_id === a && r.blocked_user_id === b) || (r.user_id === b && r.blocked_user_id === a));
+
+const mutedIdsFor = (userId: number): number[] =>
+  muteRows
+    .filter((m) => m.user_id === userId && (!m.muted_until || new Date(m.muted_until) > new Date()))
+    .map((m) => m.muted_user_id);
+
+/** Threshold guard: heavily-reported posts are pulled into the queue. */
+const maybeAutoHidePost = (postId: number): void => {
+  const pending = reportRows.filter(
+    (r) => r.reportable_type === 'post' && r.reportable_id === postId && r.status === 'pending',
+  ).length;
+  if (pending < AUTO_HIDE_REPORTS) return;
+  const post = posts.find((p) => p.id === postId);
+  if (post && (!post.status || post.status === 'published')) {
+    post.status = 'pending_review';
+    recordAudit({ id: 0, name: 'system', role: 'admin' } as MockUser, 'post.auto_hide', `post ${postId}`);
+  }
+};
+
+/* ------------------------- admin state (Phase 5) ------------------------ */
+interface AuditLogRow {
+  id: number;
+  user_id: number;
+  user_name: string;
+  action: string;
+  subject: string;
+  created_at: string;
+}
+const auditLogs: AuditLogRow[] = [];
+let nextAuditLogId = 1;
+const recordAudit = (user: MockUser, action: string, subject: string) => {
+  auditLogs.unshift({
+    id: nextAuditLogId++,
+    user_id: user.id,
+    user_name: user.name,
+    action,
+    subject,
+    created_at: nowISO(),
+  });
+};
+/* ---------- Phase 1 (2.5): in-app notifications -------------------------
+ * Mirrors NotificationService: likes, comments, review outcomes and report
+ * decisions. Local-only — no third-party push provider, no tracking. */
+interface SeamNotification {
+  id: number;
+  user_id: number;
+  type: 'like' | 'comment' | 'post_approved' | 'post_rejected' | 'report_reviewed';
+  actor_id: number | null;
+  message_en: string;
+  message_kh: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+}
+
+const seamNotifications: SeamNotification[] = [];
+let nextNotificationId = 1;
+
+const notifyUser = (
+  toId: number,
+  type: SeamNotification['type'],
+  messageEn: string,
+  messageKh: string,
+  actorId: number | null,
+): void => {
+  // No "you did this to yourself" noise.
+  if (actorId !== null && actorId === toId) return;
+  seamNotifications.unshift({
+    id: nextNotificationId++,
+    user_id: toId,
+    type,
+    actor_id: actorId,
+    message_en: messageEn,
+    message_kh: messageKh,
+    is_read: false,
+    read_at: null,
+    created_at: nowISO(),
+  });
+};
+
+/** Hidden Gem of the Week — editorial pick, never ranking. */
+let currentHiddenGem: { post_id: number; note: string; picked_by: string; week_start: string } | null = null;
+
+/* ------------------------- trip planner (Phase 6) ----------------------- */
+/** Mirrors backend TripService: ordered published-post lists, shared by slug. */
+interface TripItemRow {
+  id: number;
+  post_id: number;
+  sort_order: number;
+}
+interface TripListRow {
+  id: number;
+  user_id: number;
+  title: string;
+  slug: string;
+  description: string;
+  is_public: boolean;
+  items: TripItemRow[];
+  created_at: string;
+  updated_at: string;
+}
+const tripLists: TripListRow[] = [];
+let nextTripId = 1;
+let nextTripItemId = 1;
+const tripSlug = () =>
+  Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+
+/* Phase 6 — Trending Now mirrors backend TrendingService: same engagement
+ * weighting as rankings but a 3-day half-life inside a 14-day window. */
+export const TRENDING_HALF_LIFE_DAYS = 3;
+export const TRENDING_WINDOW_DAYS = 14;
+const trendScore = (post: Post, now: Date): number => {
+  const ageDays = Math.max(0, (now.getTime() - new Date(post.created_at).getTime()) / 86400000);
+  const engagement = 1 + post.like_count + 2 * post.comment_count + post.share_count + (post.view_count ?? 0) / 100;
+  return engagement * Math.pow(0.5, ageDays / TRENDING_HALF_LIFE_DAYS);
+};
+
+/* ------------------ contributor levels & badges (Phase 7) -------------- */
+/** Mirrors backend ContributorService. Quality, not quantity — comments
+ * weigh most, and everything is derived live from PUBLISHED posts. */
+export interface ContributorLevel {
+  floor: number;
+  key: string;
+  label: string;
+}
+export const CONTRIBUTOR_LEVELS: ContributorLevel[] = [
+  { floor: 0, key: 'seedling', label: 'Seedling' },
+  { floor: 50, key: 'explorer', label: 'Explorer' },
+  { floor: 200, key: 'local_guide', label: 'Local Guide' },
+  { floor: 600, key: 'storyteller', label: 'Storyteller' },
+  { floor: 1500, key: 'ambassador', label: 'Ambassador' },
+];
+export const CONTRIBUTOR_FORMULA =
+  'points = likes*1 + comments*3 + shares*2 + views/50, over published posts';
+const contributorSummary = (userId: number) => {
+  // Same visibility rule as the feed: seeded legacy posts have no status
+  // field and count as published.
+  const published = posts.filter(
+    (p) => p.profile_id === userId && (!p.status || p.status === 'published'),
+  );
+  const points = published.reduce(
+    (sum, p) => sum + p.like_count + 3 * p.comment_count + 2 * p.share_count + (p.view_count ?? 0) / 50,
+    0,
+  );
+  let level = CONTRIBUTOR_LEVELS[0];
+  let next: (typeof CONTRIBUTOR_LEVELS)[number] | null = null;
+  for (const candidate of CONTRIBUTOR_LEVELS) {
+    if (points >= candidate.floor) level = candidate;
+  }
+  for (const candidate of CONTRIBUTOR_LEVELS) {
+    if (points < candidate.floor) {
+      next = candidate;
+      break;
+    }
+  }
+  const likesReceived = published.reduce((sum, p) => sum + p.like_count, 0);
+  const badges: string[] = [];
+  if (published.length >= 1) badges.push('first_story');
+  if (published.length >= 10) badges.push('prolific');
+  if (likesReceived >= 100) badges.push('beloved');
+  if (published.reduce((sum, p) => sum + p.share_count, 0) >= 50) badges.push('word_spreader');
+  // Phase 8 — badge-only referral reward.
+  const referredSignups = mockUsers.filter((u) => u.referred_by_user_id === userId).length;
+  if (referredSignups >= 1) badges.push('welcomer');
+  return {
+    quality_points: Math.round(points * 10) / 10,
+    level: { floor: level.floor, key: level.key, label: level.label },
+    next_level: next ? { floor: next.floor, key: next.key, label: next.label } : null,
+    badges,
+    referred_signups: referredSignups,
+    formula: CONTRIBUTOR_FORMULA,
+  };
+};
+
+/** Stable unique 8-char invite code (mirrors ReferralService). */
+const referralCode = (): string => {
+  let code = '';
+  do {
+    code = (Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6)).toUpperCase();
+  } while (mockUsers.some((u) => u.referral_code === code));
+  return code;
+};
+
+/* ----------------------- collections (Phase 7) -------------------------- */
+/** Public community curation (always public, browsable). Published posts only. */
+interface CollectionRow {
+  id: number;
+  user_id: number;
+  title: string;
+  slug: string;
+  description: string;
+  post_ids: number[];
+  created_at: string;
+  updated_at: string;
+}
+const collections: CollectionRow[] = [];
+let nextCollectionId = 1;
+const collectionSlug = () =>
+  Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6);
+const collectionPayload = (collection: CollectionRow) => {
+  const owner = mockUsers.find((u) => u.id === collection.user_id);
+  return {
+    id: collection.id,
+    title: collection.title,
+    slug: collection.slug,
+    description: collection.description,
+    posts_count: collection.post_ids.length,
+    created_at: collection.created_at,
+    updated_at: collection.updated_at,
+    owner: owner ? publicUser(owner) : null,
+  };
+};
+const collectionDetail = (collection: CollectionRow, viewer: MockUser | null = null) => ({
+  ...collectionPayload(collection),
+  items: collection.post_ids
+    .map((id) => visiblePosts().find((p) => p.id === id))
+    .filter((p): p is Post => Boolean(p))
+    // Phase 0 hardening — public viewers get rounded coordinates.
+    .map((post, index) => ({ id: post.id, sort_order: index + 1, post: withLocationPrivacy(clone(post), viewer) })),
+});
+
+/* ------------------ duplicate-place detection (Phase 7) ----------------- */
+/** Candidate = same commune AND (near-identical name). Merges happen ONLY
+ * through the admin-confirmed endpoint and are audited. */
+const normalizePlaceName = (name: string): string =>
+  name.toLowerCase().replace(/[^a-z0-9\u1780-\u17ff]+/g, ' ').replace(/\s+/g, ' ').trim();
+const duplicateCandidates = () => {
+  const published = visiblePosts();
+  const pairs: Array<{
+    a: { id: number; name: string; commune_id: number | null };
+    b: { id: number; name: string; commune_id: number | null };
+    reason: string;
+  }> = [];
+  for (let i = 0; i < published.length; i += 1) {
+    for (let j = i + 1; j < published.length; j += 1) {
+      const a = published[i];
+      const b = published[j];
+      if (!a.commune_id || a.commune_id !== b.commune_id) continue;
+      if (normalizePlaceName(a.location_name) === normalizePlaceName(b.location_name)) {
+        pairs.push({
+          a: { id: a.id, name: a.location_name, commune_id: a.commune_id },
+          b: { id: b.id, name: b.location_name, commune_id: b.commune_id },
+          reason: 'same name',
+        });
+      }
+    }
+  }
+  return pairs;
+};
 const destinations: Destination[] = clone(destinationsSeed) as unknown as Destination[];
 const itineraries: Itinerary[] = clone(itinerariesSeed) as unknown as Itinerary[];
 const profile = clone(profileSeed);
@@ -59,6 +406,89 @@ const commentsByPost: Record<string, Comment[]> = (clone(commentsSeed) as { comm
 const commentAssets: CommentAsset[] = (clone(commentsSeed) as { assets: CommentAsset[] }).assets;
 
 const conversations: Conversation[] = clone(conversationsSeed) as unknown as Conversation[];
+
+/* --------------------------- auth (mock users) --------------------------- */
+// The in-browser demo backend keeps a tiny user table so the full auth flow
+// (register / login / bearer tokens / guarded mutations) works end to end
+// against the same contract the Laravel API exposes.
+
+interface MockUser {
+  id: number;
+  name: string;
+  name_kh: string | null;
+  email: string;
+  password: string;
+  avatar_url: string;
+  role: 'user' | 'admin';
+  /** Phase 8 — badge-only referral: a stable code plus who invited you. */
+  referral_code: string;
+  referred_by_user_id: number | null;
+  /** Phase 0 hardening — anonymized accounts can no longer sign in. */
+  is_active?: boolean;
+}
+
+const mockUsers: MockUser[] = [
+  {
+    id: 3,
+    name: 'Dara Sok',
+    name_kh: 'ដារ៉ា សុខ',
+    email: 'dara@soksan.app',
+    password: 'soksan123',
+    avatar_url: '/images/traveler-dara.jpg',
+    role: 'user',
+    referral_code: 'DARASOK3',
+    referred_by_user_id: null,
+  },
+  {
+    // Phase 5: in-app admin behind role:admin.
+    id: 4,
+    name: 'Soksan Admin',
+    name_kh: 'អ្នកគ្រប់គ្រង សុខសាន្ត',
+    email: 'admin@soksan.app',
+    password: 'soksan123',
+    avatar_url: '/images/traveler-dara.jpg',
+    role: 'admin',
+    referral_code: 'SOKSADM4',
+    referred_by_user_id: null,
+  },
+];
+let nextUserId = 100;
+
+// Phase 0 hardening — account lifecycle: revoked bearer tokens, pending
+// password-reset codes and per-user verification flags live only in memory.
+const revokedTokens = new Set<string>();
+const resetCodes = new Map<string, string>();
+const emailVerified = new Set<number>();
+
+const publicUser = (user: MockUser) => ({
+  id: user.id,
+  name: user.name,
+  name_kh: user.name_kh,
+  email: user.email,
+  avatar_url: user.avatar_url,
+  role: user.role,
+});
+
+// Tokens are stateless (`mock-token-<userId>`) so a stored session survives a
+// page reload without server-side state — mirroring how the real API resolves
+// bearer tokens via the database.
+/** Deterministic stand-in for sha1(email) in the signed verify URL. */
+const mockEmailHash = (user: MockUser): string => {
+  const value = `verify:${user.id}:${user.email}`;
+  let hash = 0;
+  for (const char of value) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash.toString(16).padStart(8, '0');
+};
+
+const bearerUser = (init?: RequestInit): MockUser | null => {
+  const header = new Headers(init?.headers).get('Authorization');
+  const match = header?.match(/^Bearer mock-token-(\d+)$/);
+  if (!match) return null;
+  if (revokedTokens.has(`mock-token-${match[1]}`)) return null;
+  return mockUsers.find((user) => user.id === Number(match[1])) || null;
+};
+
+const unauthorized = () => jsonResponse({ message: 'Please log in to do that.' }, 401);
 
 const nowISO = () => new Date().toISOString();
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
@@ -183,6 +613,59 @@ let nextPostId = 1000;
 let nextMediaId = 5000;
 let nextCampaignId = 1000;
 
+/* --------------------------- businesses (Phase 3) ----------------------- */
+// Owner dashboard + two-tier registration (free Verified, paid Boosted via
+// Bakong KHQR). Mirrors the Laravel BusinessService/BakongService contract.
+const businesses: Business[] = clone(businessesSeed.businesses) as unknown as Business[];
+const businessSubscriptions: BusinessSubscription[] = clone(
+  businessesSeed.subscriptions,
+) as unknown as BusinessSubscription[];
+let nextBusinessId = 100;
+let nextSubscriptionId = 100;
+let nextInvoiceSeq = 1000;
+
+/** Single source of truth for the Boosted price in the demo seam. */
+export const DEMO_BOOSTED_PRICE_USD = 9.9;
+
+const attachSubscription = (business: Business): Business => ({
+  ...business,
+  subscription: businessSubscriptions.find((sub) => sub.business_id === business.id) || null,
+});
+
+/** Demo KHQR payload. Production: BakongService returns the real EMV string. */
+const buildKhqrPayload = (invoiceRef: string, amountUsd: number, merchant: string): string =>
+  [
+    'KHQR', // payment rail
+    'BAKONG', // acquirer (demo)
+    merchant.replace(/\s+/g, '').slice(0, 20).toUpperCase(),
+    invoiceRef,
+    amountUsd.toFixed(2),
+    'USD',
+  ].join('|');
+
+/* ------------------------------ leads (Phase 4) ------------------------- */
+// Call / Message / Directions taps on a business profile. Owners read the
+// 7-day summary; nothing here feeds ranking (ranking reads posts only).
+interface LeadEventRow {
+  id: number;
+  business_id: number;
+  event_type: LeadEventType;
+  created_at: string;
+}
+const leadEvents: LeadEventRow[] = clone(leadEventsSeed.events) as unknown as LeadEventRow[];
+let nextLeadEventId = 100;
+
+/** Admin date window check — mirrors PartnerPlacementService::activeAt(). */
+export const isPlacementActive = (
+  partner: Pick<Partner, 'active' | 'starts_at' | 'ends_at'>,
+  at: Date = new Date(),
+): boolean => {
+  if (!partner.active) return false;
+  if (partner.starts_at && new Date(partner.starts_at).getTime() > at.getTime()) return false;
+  if (partner.ends_at && new Date(partner.ends_at).getTime() <= at.getTime()) return false;
+  return true;
+};
+
 /* ------------------------------ helpers --------------------------------- */
 
 const jsonResponse = (data: unknown, status = 200) =>
@@ -215,38 +698,322 @@ const paymentRef = (prefix: string) => `${prefix}-${Math.floor(10_000_000 + Math
 /* ------------------------------ handlers -------------------------------- */
 
 async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
-  const path = url.pathname;
+  // Versioned API: /api/v1/<resource> dispatches to the same handlers the
+  // demo backend originally served under /api/<resource>.
+  const path = url.pathname.replace(/^\/api\/v1(?=\/)/, '/api');
   const method = (init?.method || 'GET').toUpperCase();
   const body = init?.body ? JSON.parse(String(init.body)) : null;
 
   await wait(method === 'GET' ? 220 : 420);
 
+  /* ---- auth ---- */
+  if (path === '/api/auth/register' && method === 'POST') {
+    const name = String(body?.name || '').trim();
+    const email = String(body?.email || '').trim().toLowerCase();
+    const password = String(body?.password || '');
+    if (name.length < 2) {
+      return jsonResponse({ message: 'Please tell us your name (at least 2 characters).' }, 422);
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return jsonResponse({ message: 'That email address does not look right.' }, 422);
+    }
+    if (password.length < 8) {
+      return jsonResponse({ message: 'Password must be at least 8 characters.' }, 422);
+    }
+    if (mockUsers.some((user) => user.email === email)) {
+      return jsonResponse({ message: 'An account with this email already exists.' }, 422);
+    }
+    // Phase 8 — badge-only referral: an unknown/absent invite code never
+    // blocks signup, it just isn't linked.
+    const referredBy = mockUsers.find(
+      (candidate) =>
+        candidate.referral_code === String(body?.referral_code || '').trim().toUpperCase(),
+    );
+    const user: MockUser = {
+      id: nextUserId++,
+      name,
+      name_kh: null,
+      email,
+      password,
+      avatar_url: '/images/traveler-dara.jpg',
+      role: 'user',
+      referral_code: referralCode(),
+      referred_by_user_id: referredBy ? referredBy.id : null,
+      is_active: true,
+    };
+    mockUsers.push(user);
+    const token = `mock-token-${user.id}`;
+    return jsonResponse({ token, user: publicUser(user) }, 201);
+  }
+
+  if (path === '/api/auth/login' && method === 'POST') {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const user = mockUsers.find((candidate) => candidate.email === email);
+    if (!user || user.password !== String(body?.password || '') || user.is_active === false) {
+      return jsonResponse({ message: 'Email or password is incorrect.' }, 422);
+    }
+    const token = `mock-token-${user.id}`;
+    revokedTokens.delete(token); // a fresh login re-issues the session
+    return jsonResponse({ token, user: publicUser(user) });
+  }
+
+  if (path === '/api/auth/me' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(publicUser(user));
+  }
+
+  if (path === '/api/auth/logout' && method === 'POST') {
+    return jsonResponse({ ok: true });
+  }
+
+  /* ---- Phase 0 hardening: recovery, verification, deletion ----------- */
+  if (path === '/api/auth/forgot-password' && method === 'POST') {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const user = mockUsers.find((candidate) => candidate.email === email);
+    // Always succeed (anti-enumeration); the demo token is returned only
+    // because there is no mail server — a real deployment emails the link.
+    if (user) {
+      const code = `reset-${user.id}-${Math.random().toString(36).slice(2, 10)}`;
+      resetCodes.set(email, code);
+      return jsonResponse({ message: 'If that account exists, a reset link has been sent.', demo_token: code });
+    }
+    return jsonResponse({ message: 'If that account exists, a reset link has been sent.' });
+  }
+
+  if (path === '/api/auth/reset-password' && method === 'POST') {
+    const email = String(body?.email || '').trim().toLowerCase();
+    const user = mockUsers.find((candidate) => candidate.email === email);
+    const expected = resetCodes.get(email);
+    if (!user || !expected || expected !== String(body?.token || '')) {
+      return jsonResponse({ message: 'The reset link is invalid or has expired.' }, 422);
+    }
+    const password = String(body?.password || '');
+    if (password.length < 8 || password !== String(body?.password_confirmation || '')) {
+      return jsonResponse({ message: 'Passwords must be at least 8 characters and match.', errors: { password: ['Invalid password.'] } }, 422);
+    }
+    resetCodes.delete(email);
+    user.password = password;
+    revokedTokens.add(`mock-token-${user.id}`); // kill every live session
+    return jsonResponse({ message: 'Password reset. All other sessions were signed out.' });
+  }
+
+  const verifyMatch = path.match(/^\/api\/email\/verify\/(\d+)\/([a-f0-9]+)$/);
+  if (verifyMatch && method === 'GET') {
+    const user = mockUsers.find((candidate) => candidate.id === Number(verifyMatch[1]));
+    if (!user || verifyMatch[2] !== mockEmailHash(user)) {
+      return jsonResponse({ message: 'Invalid verification link.' }, 403);
+    }
+    emailVerified.add(user.id);
+    return jsonResponse({ message: 'Email verified.' });
+  }
+
+  if (path === '/api/email/verification-notification' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse({
+      message: emailVerified.has(user.id) ? 'Email already verified.' : 'Verification link sent.',
+      demo_hash: mockEmailHash(user),
+    });
+  }
+
+  if (path === '/api/auth/me' && method === 'DELETE') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    if (user.password !== String(body?.password || '')) {
+      return jsonResponse({ message: 'The password is incorrect.', errors: { password: ['The password is incorrect.'] } }, 422);
+    }
+    user.is_active = false;
+    user.name = 'Deleted user';
+    user.email = `deleted-${user.id}@deleted.invalid`;
+    revokedTokens.add(`mock-token-${user.id}`);
+    return jsonResponse({ message: 'Your account has been deactivated and anonymized.' });
+  }
+
+  /* ---- Phase 1 (2.5): notification inbox ------------------------------ */
+  if (path === '/api/notifications/unread-count' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse({
+      count: seamNotifications.filter((n) => n.user_id === user.id && !n.is_read).length,
+    });
+  }
+
+  if (path === '/api/notifications/read-all' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    let updated = 0;
+    for (const n of seamNotifications) {
+      if (n.user_id === user.id && !n.is_read) {
+        n.is_read = true;
+        n.read_at = nowISO();
+        updated += 1;
+      }
+    }
+    return jsonResponse({ message: 'All notifications marked as read.', updated });
+  }
+
+  const notificationReadMatch = path.match(/^\/api\/notifications\/(\d+)\/read$/);
+  if (notificationReadMatch && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const n = seamNotifications.find((row) => row.id === Number(notificationReadMatch[1]));
+    if (!n || n.user_id !== user.id) return jsonResponse({ error: 'Notification not found' }, 404);
+    if (!n.is_read) {
+      n.is_read = true;
+      n.read_at = nowISO();
+    }
+    return jsonResponse({ message: 'Notification marked as read.' });
+  }
+
+  if (path === '/api/notifications' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    let list = seamNotifications.filter((n) => n.user_id === user.id);
+    if (url.searchParams.get('unread') === '1') list = list.filter((n) => !n.is_read);
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1') || 1);
+    const perPage = 20;
+    return jsonResponse({
+      data: clone(list.slice((page - 1) * perPage, page * perPage)),
+      total: list.length,
+      current_page: page,
+      per_page: perPage,
+    });
+  }
+
+  /* ---- Phase 1 (2.2): geo search ------------------------------------- */
+  if (path === '/api/posts/nearby' && method === 'GET') {
+    const rawLat = url.searchParams.get('lat');
+    const rawLng = url.searchParams.get('lng');
+    const lat = Number(rawLat);
+    const lng = Number(rawLng);
+    if (
+      rawLat === null ||
+      rawLng === null ||
+      rawLat.trim() === '' ||
+      rawLng.trim() === '' ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
+      return jsonResponse(
+        { message: 'Valid lat and lng query parameters are required.', errors: { lat: ['Required.'] } },
+        422,
+      );
+    }
+    const radiusKm = Math.min(100, Math.max(0.1, Number(url.searchParams.get('radius_km') || '25') || 25));
+    const perPage = Math.min(50, Math.max(1, Number(url.searchParams.get('per_page') || '20') || 20));
+    const page = Math.max(1, Number(url.searchParams.get('page') || '1') || 1);
+
+    const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number): number => {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const dLat = toRad(bLat - aLat);
+      const dLng = toRad(bLng - aLng);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+    };
+
+    const viewer = bearerUser(init);
+    const muted = viewer ? mutedIdsFor(viewer.id) : [];
+    const hits = visiblePosts()
+      .filter((p) => p.lat !== null && p.lat !== undefined && p.lng !== null && p.lng !== undefined)
+      .filter((p) => !muted.includes(p.profile_id))
+      .map((p) => ({
+        post: p,
+        distance_km: Number(haversineKm(lat, lng, p.lat as number, p.lng as number).toFixed(2)),
+      }))
+      .filter((entry) => entry.distance_km <= radiusKm)
+      .sort((a, b) => a.distance_km - b.distance_km);
+
+    const start = (page - 1) * perPage;
+    return jsonResponse({
+      data: clone(hits.slice(start, start + perPage)).map((entry) => ({
+        ...withLocationPrivacy(entry.post, viewer),
+        distance_km: entry.distance_km,
+      })),
+      meta: {
+        current_page: page,
+        per_page: perPage,
+        total: hits.length,
+        radius_km: radiusKm,
+        center: { latitude: lat, longitude: lng },
+      },
+    });
+  }
+
   /* ---- posts ---- */
   if (path === '/api/posts') {
     if (method === 'GET') {
       if (url.searchParams.get('format') === 'clips') {
-        const clips = posts.filter((p) => p.media.some((m) => m.media_type === 'video') || p.media_type === 'video');
-        return jsonResponse(clone(clips));
+        const clips = visiblePosts().filter(
+          (p) => p.media.some((m) => m.media_type === 'video') || p.media_type === 'video',
+        );
+        // TikTok-style paginated feed: page size 3, empty page = end of feed.
+        const page = Math.max(1, Number(url.searchParams.get('page') || '1'));
+        const pageSize = 3;
+        const start = (page - 1) * pageSize;
+        const viewer = bearerUser(init);
+        return jsonResponse(clone(clips.slice(start, start + pageSize)).map((p) => withLocationPrivacy(p, viewer)));
       }
-      let list = [...posts];
+      let list = [...visiblePosts()];
       const category = url.searchParams.get('category');
       const search = url.searchParams.get('search');
       if (category) list = list.filter((p) => p.category === category);
       if (search) list = list.filter((p) => matchesSearch(p, search));
-      return jsonResponse(clone(list));
+      const viewer = bearerUser(init);
+      // Phase 0 hardening: muted authors disappear from the viewer's feed.
+      if (viewer) {
+        const muted = mutedIdsFor(viewer.id);
+        if (muted.length) list = list.filter((p) => !muted.includes(p.profile_id));
+      }
+      return jsonResponse(clone(list).map((p) => withLocationPrivacy(p, viewer)));
     }
     if (method === 'PUT') {
       const post = posts.find((p) => p.id === body.id);
       if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (body.action === 'view') {
+        // View counting is public and cheap; the real backend does this with
+        // a Redis INCR flushed to Postgres in batches.
+        post.view_count = (post.view_count || 0) + 1;
+        return jsonResponse({ ok: true, view_count: post.view_count });
+      }
+      const actor = bearerUser(init);
+      if (!actor) return unauthorized();
       if (body.action === 'like') {
         post.is_liked = !post.is_liked;
         post.like_count = Math.max(0, post.like_count + (post.is_liked ? 1 : -1));
+        // Phase 1 (2.5): tell the author their story was liked.
+        if (post.is_liked) {
+          notifyUser(
+            post.profile_id,
+            'like',
+            `${actor.name} liked your post.`,
+            `${actor.name} បានចូលចិត្តប្រកាសរបស់អ្នក។`,
+            actor.id,
+          );
+        }
       }
       if (body.action === 'share') post.share_count += 1;
       if (body.action === 'comment') post.comment_count += 1;
-      return jsonResponse({ ok: true });
+      if (body.action === 'save') post.is_saved = !post.is_saved;
+      return jsonResponse({ ok: true, is_saved: post.is_saved });
     }
     if (method === 'POST') {
+      const user = bearerUser(init);
+      if (!user) return unauthorized();
+      // Phase 9 — safety & accessibility tags: closed allow-list only
+      // (mirrors StorePostRequest + SafetyTagService).
+      const rawTags: unknown[] = Array.isArray(body?.safety_tags) ? body.safety_tags : [];
+      const unknownTag = rawTags.find((tag) => !isSafetyTag(tag));
+      if (unknownTag !== undefined || rawTags.length > MAX_SAFETY_TAGS) {
+        return jsonResponse({ message: 'One or more safety tags are not allowed.' }, 422);
+      }
+      const safetyTags = [...new Set(rawTags as string[])];
       const media = (body.media || []).map(
         (m: { media_url: string; media_type: 'image' | 'video'; duration_seconds: number }, i: number) => ({
           id: nextMediaId++,
@@ -257,14 +1024,50 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
           duration_seconds: m.duration_seconds || null,
         }),
       );
-      const author = posts.find((p) => p.author.id === body.profile_id)?.author;
-      if (!author) return jsonResponse({ error: 'Profile not found' }, 400);
+      // The authenticated user becomes the author of their own post.
+      const author: Post['author'] = {
+        id: user.id,
+        name: user.name,
+        name_kh: user.name_kh,
+        handle: `@${user.email.split('@')[0]}`,
+        avatar_url: user.avatar_url,
+        cover_url: '',
+        verified: false,
+        location: 'Cambodia',
+        bio_en: '',
+        bio_kh: '',
+        expertise: '',
+        badges: [],
+        followers: 0,
+        following: 0,
+        posts_count: 0,
+        is_following: false,
+      };
+      // Commune tagging: district/province derive from the commune, so the
+      // hierarchy can never disagree with itself.
+      const pickedCommune = (geographySeed.communes as Array<{ id: number; name: string }>).find(
+        (c) => c.id === Number(body.commune_id),
+      );
+      const derivedProvince = pickedCommune ? geoProvinceOf(pickedCommune.id)?.name : undefined;
+      // Phase 5 first-post gate (mirrors backend PostService): an account
+      // with no published posts gets its FIRST post held for admin review.
+      const firstPostGate = !posts.some(
+        (p) => p.profile_id === user.id && (!p.status || p.status === 'published'),
+      );
       const post: Post = {
         id: nextPostId++,
-        profile_id: body.profile_id,
+        profile_id: user.id,
+        status: firstPostGate ? 'pending_review' : 'published',
         category: body.category,
         location_name: body.location_name,
-        province: body.province,
+        province: derivedProvince || body.province,
+        commune_id: pickedCommune ? pickedCommune.id : null,
+        commune_name: pickedCommune ? pickedCommune.name : undefined,
+        // Phase 2: optional manual pin. In production the server verifies
+        // business places via Google Places (backend PlacesService); regular
+        // users may attach raw coordinates.
+        lat: typeof body.latitude === 'number' ? body.latitude : null,
+        lng: typeof body.longitude === 'number' ? body.longitude : null,
         media_url: media[0]?.media_url || '',
         media_type: media[0]?.media_type || 'image',
         caption_en: body.caption,
@@ -273,10 +1076,21 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
         like_count: 0,
         comment_count: 0,
         share_count: 0,
+        view_count: 0,
         is_liked: false,
+        is_saved: false,
         business_name: null,
         destination_id: null,
-        created_at: nowISO(),
+      // Phase 9 — self-reported safety & accessibility observations.
+      safety_tags: safetyTags,
+      // Phase 0 hardening — location privacy. Default is APPROXIMATE
+      // (3 ≈ 110m); exact public coordinates are an explicit opt-in and
+      // sensitive posts are capped at ~1.1km for public viewers.
+      location_precision: typeof body?.location_precision === 'number'
+        ? Math.min(7, Math.max(0, Math.round(body.location_precision)))
+        : 3,
+      is_sensitive_location: Boolean(body?.is_sensitive_location),
+      created_at: nowISO(),
         author: clone(author),
         promotion: null,
         media,
@@ -286,6 +1100,75 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     }
   }
 
+  /* Phase 8 — public single post (share-card / deep-link landing page).
+   * Mirrors backend GET /api/v1/posts/{post}: published only. */
+  if (path.startsWith('/api/posts/') && method === 'GET') {
+    const id = Number(path.slice('/api/posts/'.length));
+    if (!Number.isInteger(id) || path.slice('/api/posts/'.length).includes('/')) {
+      return jsonResponse({ error: 'Not found' }, 404);
+    }
+    const post = visiblePosts().find((p) => p.id === id);
+    if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+    return jsonResponse(withLocationPrivacy(clone(post), bearerUser(init)));
+  }
+
+
+  /* ---- Phase 1: geography + recency-decay rankings ------------------------
+   Mirrors backend RankingService: score = (1 + likes + 2*comments + shares
+   + views/100) * 0.5^(age_days / 21). Rolls up commune -> district ->
+   province; national = provinces scope.                                      */
+const GEO_HALF_LIFE_DAYS = 21;
+
+interface GeoRow { id: number; name: string; name_kh: string | null; score: number; post_count: number }
+
+function geoDistrictOf(communeId: number | undefined | null) {
+  const commune = (geographySeed.communes as Array<{ id: number; district_id: number }>).find((c) => c.id === communeId);
+  return (geographySeed.districts as Array<{ id: number; province_id: number; name: string; name_kh: string }>).find((d) => d.id === commune?.district_id);
+}
+
+function geoProvinceOf(communeId: number | undefined | null) {
+  const district = geoDistrictOf(communeId);
+  return (geographySeed.provinces as Array<{ id: number; name: string; name_kh: string }>).find((p) => p.id === district?.province_id);
+}
+
+function computeGeoRankings(scope: string, provinceId: number | null, limit: number): GeoRow[] {
+  const now = Date.now();
+  const tally = new Map<number, { score: number; post_count: number }>();
+
+  for (const post of posts) {
+    const ageDays = Math.max(0, (now - new Date(post.created_at).getTime()) / 86_400_000);
+    const weight = Math.pow(0.5, ageDays / GEO_HALF_LIFE_DAYS);
+    const engagement =
+      1 + post.like_count + 2 * post.comment_count + post.share_count + (post.view_count || 0) / 100;
+
+    let target: { id: number; name: string; name_kh: string | null } | undefined;
+    if (scope === 'communes') {
+      target = (geographySeed.communes as Array<{ id: number; name: string; name_kh: string }>).find((c) => c.id === post.commune_id);
+    } else if (scope === 'districts') {
+      target = geoDistrictOf(post.commune_id);
+    } else {
+      target = geoProvinceOf(post.commune_id);
+    }
+    if (!target) continue;
+    if (provinceId !== null && geoProvinceOf(post.commune_id)?.id !== provinceId) continue;
+
+    const entry = tally.get(target.id) || { score: 0, post_count: 0 };
+    entry.score += engagement * weight;
+    entry.post_count += 1;
+    tally.set(target.id, entry);
+  }
+
+  return [...tally.entries()]
+    .map(([id, entry]) => {
+      const source =
+        scope === 'communes' ? geographySeed.communes : scope === 'districts' ? geographySeed.districts : geographySeed.provinces;
+      const named = (source as Array<{ id: number; name: string; name_kh: string }>).find((item) => item.id === id);
+      return { id, name: named?.name || '', name_kh: named?.name_kh || null, score: Math.round(entry.score * 10) / 10, post_count: entry.post_count };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
   /* ---- categories / ads / rankings ---- */
   if (path === '/api/categories') return jsonResponse(clone(categories));
 
@@ -293,6 +1176,22 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
     const placement = url.searchParams.get('placement');
     const list = placement ? ads.filter((a: { placement: string }) => a.placement === placement) : ads;
     return jsonResponse(clone(list));
+  }
+
+  if (path === '/api/geography') return jsonResponse(clone(geographySeed));
+
+  if (path === '/api/rankings/geography') {
+    const scope = url.searchParams.get('scope') || 'provinces';
+    if (!['communes', 'districts', 'provinces'].includes(scope)) {
+      return jsonResponse({ error: 'scope must be communes, districts or provinces' }, 422);
+    }
+    const provinceParam = url.searchParams.get('province_id');
+    const data = computeGeoRankings(
+      scope,
+      provinceParam !== null ? Number(provinceParam) : null,
+      Math.min(50, Math.max(1, Number(url.searchParams.get('limit') || '25'))),
+    ).map((row, index) => ({ ...row, rank: index + 1 }));
+    return jsonResponse({ data, meta: { scope, half_life_days: GEO_HALF_LIFE_DAYS } });
   }
 
   if (path === '/api/rankings') {
@@ -332,13 +1231,20 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       });
     }
     if (method === 'POST') {
+      const user = bearerUser(init);
+      if (!user) return unauthorized();
+      // Phase 0 hardening: blocked users cannot comment on each other's posts.
+      const commentTargetPost = posts.find((p) => p.id === body.post_id);
+      if (commentTargetPost && blockedBetween(user.id, commentTargetPost.profile_id)) {
+        return jsonResponse({ error: 'You cannot interact with this user.' }, 403);
+      }
       const asset = body.asset_id ? commentAssets.find((a) => a.id === body.asset_id) : null;
       if (!body.body?.trim() && !asset) return jsonResponse({ error: 'Comment cannot be empty' }, 400);
       const comment: Comment = {
         id: nextCommentId++,
         post_id: body.post_id,
-        author_name: 'Dara Sok',
-        avatar_url: '/images/traveler-dara.jpg',
+        author_name: user.name,
+        avatar_url: user.avatar_url,
         body: asset ? '' : body.body,
         comment_type: asset ? asset.asset_type : 'text',
         asset_url: asset?.asset_url || null,
@@ -350,10 +1256,21 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       const key = String(body.post_id);
       commentsByPost[key] = [comment, ...(commentsByPost[key] || [])];
       const post = posts.find((p) => p.id === body.post_id);
-      if (post) post.comment_count += 1;
+      if (post) {
+        post.comment_count += 1;
+        // Phase 1 (2.5): tell the author someone commented.
+        notifyUser(
+          post.profile_id,
+          'comment',
+          `${user.name} commented on your post.`,
+          `${user.name} បានមតិលើប្រកាសរបស់អ្នក។`,
+          user.id,
+        );
+      }
       return jsonResponse(clone(comment), 201);
     }
     if (method === 'PUT') {
+      if (!bearerUser(init)) return unauthorized();
       for (const list of Object.values(commentsByPost)) {
         const comment = list.find((c) => c.id === body.id);
         if (comment) {
@@ -368,9 +1285,776 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
 
   /* ---- follows ---- */
   if (path === '/api/follows' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    // Phase 0 hardening: a block in either direction ends social contact.
+    if (blockedBetween(user.id, Number(body.profile_id))) {
+      return jsonResponse({ error: 'You cannot interact with this user.' }, 403);
+    }
     const target = posts.find((p) => p.author.id === body.profile_id);
     if (target) applyFollowState(body.profile_id, !target.author.is_following);
     return jsonResponse({ ok: true });
+  }
+
+  /* ---- Phase 0 hardening: reports (users) ---- */
+  if (path === '/api/reports' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const type = body?.reportable_type;
+    if (type !== 'post' && type !== 'comment') {
+      return jsonResponse({ error: 'reportable_type must be post or comment' }, 422);
+    }
+    const targetId = Number(body?.reportable_id);
+    const reason = String(body?.reason || '');
+    if (!(REPORT_REASONS as readonly string[]).includes(reason)) {
+      return jsonResponse({ error: 'Unknown report reason.' }, 422);
+    }
+    if (type === 'post') {
+      const post = posts.find((p) => p.id === targetId);
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.profile_id === user.id) return jsonResponse({ error: 'You cannot report your own content.' }, 422);
+    } else {
+      const comment = Object.values(commentsByPost).flat().find((c) => c.id === targetId);
+      if (!comment) return jsonResponse({ error: 'Comment not found' }, 404);
+    }
+    const duplicate = reportRows.some(
+      (r) => r.reporter_id === user.id && r.reportable_type === type && r.reportable_id === targetId,
+    );
+    if (duplicate) return jsonResponse({ error: 'You already reported this item.' }, 409);
+    const report: ReportRow = {
+      id: nextReportId++,
+      reporter_id: user.id,
+      reportable_type: type,
+      reportable_id: targetId,
+      reason,
+      details: body?.details ? String(body.details) : null,
+      status: 'pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: nowISO(),
+    };
+    reportRows.unshift(report);
+    if (type === 'post') maybeAutoHidePost(targetId);
+    return jsonResponse(clone(report), 201);
+  }
+
+  if (path.startsWith('/api/reports/') && method === 'DELETE') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const id = Number(path.slice('/api/reports/'.length));
+    const index = reportRows.findIndex((r) => r.id === id);
+    if (index === -1) return jsonResponse({ error: 'Report not found' }, 404);
+    const report = reportRows[index];
+    if (report.reporter_id !== user.id) return jsonResponse({ error: 'You can only withdraw your own reports.' }, 403);
+    if (report.status !== 'pending') return jsonResponse({ error: 'Only pending reports can be withdrawn.' }, 422);
+    reportRows.splice(index, 1);
+    return jsonResponse({ message: 'Report withdrawn.' });
+  }
+
+  /* ---- Phase 0 hardening: blocks & mutes ---- */
+  const safetyMatch = path.match(/^\/api\/users\/(\d+)\/(block|mute)$/);
+  if (safetyMatch) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const targetId = Number(safetyMatch[1]);
+    const kind = safetyMatch[2];
+    if (targetId === user.id) {
+      return jsonResponse({ error: kind === 'block' ? 'You cannot block yourself.' : 'You cannot mute yourself.' }, 422);
+    }
+    // Known users include the seeded post authors (they have no login in
+    // the demo, but they are real members of the community).
+    const knownTarget =
+      mockUsers.some((u) => u.id === targetId) ||
+      posts.some((p) => p.author.id === targetId);
+    if (!knownTarget) return jsonResponse({ error: 'User not found' }, 404);
+
+    if (kind === 'block') {
+      if (method === 'POST') {
+        const row =
+          blockRows.find((b) => b.user_id === user.id && b.blocked_user_id === targetId) ||
+          blockRows[blockRows.push({ id: nextBlockId++, user_id: user.id, blocked_user_id: targetId }) - 1];
+        return jsonResponse({ blocked: true, id: row.id }, 201);
+      }
+      if (method === 'DELETE') {
+        const index = blockRows.findIndex((b) => b.user_id === user.id && b.blocked_user_id === targetId);
+        if (index !== -1) blockRows.splice(index, 1);
+        return jsonResponse({ blocked: false });
+      }
+    }
+    if (kind === 'mute') {
+      if (method === 'POST') {
+        const row =
+          muteRows.find((m) => m.user_id === user.id && m.muted_user_id === targetId) ||
+          muteRows[muteRows.push({ id: nextMuteId++, user_id: user.id, muted_user_id: targetId, muted_until: null }) - 1];
+        if (body?.muted_until) row.muted_until = String(body.muted_until);
+        return jsonResponse({ muted: true, id: row.id }, 201);
+      }
+      if (method === 'DELETE') {
+        const index = muteRows.findIndex((m) => m.user_id === user.id && m.muted_user_id === targetId);
+        if (index !== -1) muteRows.splice(index, 1);
+        return jsonResponse({ muted: false });
+      }
+    }
+  }
+
+  /* ---- Phase 0 hardening: admin report queue ---- */
+  /* ---- Phase 1 (2.4): admin dashboard stats -------------------------- */
+  if (path === '/api/admin/stats' && method === 'GET') {
+    const admin = bearerUser(init);
+    if (!admin) return unauthorized();
+    if (admin.role !== 'admin') return jsonResponse({ error: 'Forbidden' }, 403);
+
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recent = (iso: string) => new Date(iso).getTime() >= weekAgo;
+    const byProvince = new Map<string, number>();
+    for (const p of posts) {
+      if (p.province) byProvince.set(p.province, (byProvince.get(p.province) || 0) + 1);
+    }
+    return jsonResponse({
+      posts: {
+        total: posts.length,
+        published: visiblePosts().length,
+        pending_review: posts.filter((p) => p.status === 'pending_review').length,
+        rejected: posts.filter((p) => p.status === 'rejected').length,
+        last_7_days: posts.filter((p) => recent(p.created_at)).length,
+      },
+      reports: {
+        pending: reportRows.filter((r) => r.status === 'pending').length,
+        decided_last_7_days: reportRows.filter((r) => r.reviewed_at && recent(r.reviewed_at)).length,
+      },
+      users: {
+        total: mockUsers.length,
+        new_last_7_days: 0, // seam users carry no created_at
+      },
+      businesses: {
+        pending: businesses.filter((b) => b.status === 'pending').length,
+      },
+      top_provinces: [...byProvince.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([province, posts_count]) => ({ province, posts_count })),
+    });
+  }
+
+  if (path.startsWith('/api/admin/reports')) {
+    const admin = bearerUser(init);
+    if (!admin || admin.role !== 'admin') return jsonResponse({ error: 'Forbidden' }, 403);
+
+    if (path === '/api/admin/reports' && method === 'GET') {
+      const status = url.searchParams.get('status') || 'pending';
+      const list = reportRows.filter((r) => status === 'all' || r.status === status);
+      return jsonResponse(clone(list));
+    }
+    const idMatch = path.match(/^\/api\/admin\/reports\/(\d+)$/);
+    if (idMatch) {
+      const id = Number(idMatch[1]);
+      const report = reportRows.find((r) => r.id === id);
+      if (!report) return jsonResponse({ error: 'Report not found' }, 404);
+      if (method === 'GET') return jsonResponse(clone(report));
+      if (method === 'PATCH') {
+        const decision = String(body?.decision || '');
+        if (!['approved', 'rejected', 'dismissed'].includes(decision)) {
+          return jsonResponse({ error: 'Invalid decision.' }, 422);
+        }
+        report.status = decision as ReportRow['status'];
+        report.reviewed_by = admin.id;
+        report.reviewed_at = nowISO();
+        let ownerId: number | null = null;
+        if (decision === 'approved') {
+          if (report.reportable_type === 'post') {
+            const post = posts.find((p) => p.id === report.reportable_id);
+            if (post) {
+              post.status = 'rejected';
+              ownerId = post.profile_id;
+            }
+          } else {
+            for (const list of Object.values(commentsByPost)) {
+              const commentIndex = list.findIndex((c) => c.id === report.reportable_id);
+              if (commentIndex !== -1) list.splice(commentIndex, 1);
+            }
+          }
+        } else {
+          const post = posts.find((p) => p.id === report.reportable_id);
+          ownerId = post ? post.profile_id : null;
+        }
+        // Phase 1 (2.5): tell the content owner the report outcome.
+        if (ownerId !== null) {
+          notifyUser(
+            ownerId,
+            'report_reviewed',
+            decision === 'approved'
+              ? 'A report about your content was upheld and it is no longer public.'
+              : 'A report about your content was reviewed and no action was taken.',
+            decision === 'approved'
+              ? 'របាយការណ៍អំពីមាតិការបស់អ្នកត្រូវបានអនុម័ត ហើយវាលែងបង្ហាញជាសាធារណៈទៀតហើយ។'
+              : 'របាយការណ៍អំពីមាតិការបស់អ្នកត្រូវបានពិនិត្យ ដោយគ្មានវិធានការ។',
+            admin.id,
+          );
+        }
+        recordAudit(admin, `report.${decision}`, `${report.reportable_type} ${report.reportable_id}`);
+        return jsonResponse(clone(report));
+      }
+    }
+  }
+
+  /* ---- places: one-time confirmation (Phase 2) ----
+   * Demo seam mirroring POST /api/v1/places/confirm. The real backend
+   * (PlacesService) calls the Google Places API exactly once per business
+   * registration and stores place_id + lat/lng; without an API key the demo
+   * layer acknowledges the request deterministically. Manual pins (regular
+   * users) pass through unchanged. */
+  if (path === '/api/places/confirm' && method === 'POST') {
+    if (!bearerUser(init)) return unauthorized();
+    if (body.place_id) {
+      return jsonResponse({
+        source: 'google_places',
+        place_id: body.place_id,
+        name: body.name || 'Confirmed place',
+        formatted_address: body.name ? `${body.name}, Cambodia` : 'Cambodia',
+        lat: typeof body.lat === 'number' ? body.lat : 11.5564,
+        lng: typeof body.lng === 'number' ? body.lng : 104.9282,
+        confirmed: true,
+      });
+    }
+    if (typeof body.lat === 'number' && typeof body.lng === 'number') {
+      return jsonResponse({ source: 'manual', lat: body.lat, lng: body.lng, confirmed: true });
+    }
+    return jsonResponse({ error: 'Provide a place_id or lat/lng' }, 422);
+  }
+
+  /* ---- businesses: registration + Boosted upgrade (Phase 3) ---- */
+  if (path === '/api/businesses/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(clone(businesses.filter((b) => b.owner_id === user.id).map(attachSubscription)));
+  }
+
+  if (path === '/api/businesses' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const name = String(body.name || '').trim();
+    const placeName = String(body.place_name || '').trim();
+    if (name.length < 2 || placeName.length < 2) {
+      return jsonResponse({ error: 'Business name and place are required' }, 422);
+    }
+    // Phase 5: new businesses wait for admin approval (queue in /admin).
+    const business: Business = {
+      id: nextBusinessId++,
+      owner_id: user.id,
+      name,
+      name_kh: body.name_kh || null,
+      category: body.category || 'local-food',
+      description: body.description || '',
+      phone: body.phone || '',
+      tier: 'verified',
+      status: 'pending',
+      place_name: placeName,
+      lat: typeof body.lat === 'number' ? body.lat : null,
+      lng: typeof body.lng === 'number' ? body.lng : null,
+      subscription: null,
+      created_at: nowISO(),
+    };
+    businesses.push(business);
+    return jsonResponse(clone(business), 201);
+  }
+
+  if (path === '/api/businesses/upgrade' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((b) => b.id === Number(body.business_id) && b.owner_id === user.id);
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    // One live subscription per business.
+    const existing = businessSubscriptions.find(
+      (sub) => sub.business_id === business.id && sub.status !== 'cancelled',
+    );
+    if (existing && existing.status === 'active') {
+      return jsonResponse({ error: 'This business is already Boosted' }, 409);
+    }
+    const invoiceRef = `KHQR-${nextInvoiceSeq++}`;
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    let subscription = existing && existing.status === 'pending_payment' ? existing : null;
+    if (!subscription) {
+      subscription = {
+        id: nextSubscriptionId++,
+        business_id: business.id,
+        status: 'pending_payment',
+        amount_usd: DEMO_BOOSTED_PRICE_USD,
+        currency: 'USD',
+        invoice_ref: invoiceRef,
+        starts_at: null,
+        expires_at: null,
+        paid_at: null,
+      };
+      businessSubscriptions.push(subscription);
+    }
+    const invoice: KhqrInvoice = {
+      invoice_ref: invoiceRef,
+      business_id: business.id,
+      amount_usd: DEMO_BOOSTED_PRICE_USD,
+      currency: 'USD',
+      khqr_payload: buildKhqrPayload(invoiceRef, DEMO_BOOSTED_PRICE_USD, business.name),
+      expires_at: expiresAt,
+    };
+    return jsonResponse({ invoice, subscription: clone(subscription) }, 201);
+  }
+
+  if (path === '/api/businesses/upgrade/confirm' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((b) => b.id === Number(body.business_id) && b.owner_id === user.id);
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    const subscription = businessSubscriptions.find(
+      (sub) => sub.business_id === business.id && sub.status === 'pending_payment',
+    );
+    if (!subscription) return jsonResponse({ error: 'No payment pending' }, 409);
+    // DEMO: instant confirmation. Production verifies against the Bakong
+    // transaction (BakongService) before activating anything.
+    subscription.status = 'active';
+    subscription.paid_at = nowISO();
+    subscription.starts_at = nowISO();
+    subscription.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    business.tier = 'boosted';
+    return jsonResponse(clone(attachSubscription(business)));
+  }
+
+  /* ---- business public profile (Phase 4 lead surface) ---- */
+  if (path === '/api/businesses/profile' && method === 'GET') {
+    const id = Number(url.searchParams.get('id'));
+    const business = businesses.find((item) => item.id === id && item.status === 'approved');
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    return jsonResponse(clone(attachSubscription(business)));
+  }
+
+  /* ---- leads: call / message / directions (Phase 4) ---- */
+  if (path === '/api/businesses/leads' && method === 'POST') {
+    // Public: guests can tap Call/Directions without an account.
+    const business = businesses.find((item) => item.id === Number(body.business_id));
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    if (!['call', 'message', 'directions'].includes(body.event_type)) {
+      return jsonResponse({ error: 'event_type must be call, message or directions' }, 422);
+    }
+    const event: LeadEventRow = {
+      id: nextLeadEventId++,
+      business_id: business.id,
+      event_type: body.event_type as LeadEventType,
+      created_at: nowISO(),
+    };
+    leadEvents.push(event);
+    return jsonResponse({ ok: true, id: event.id }, 201);
+  }
+
+  if (path === '/api/businesses/leads/summary' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const business = businesses.find((item) => item.id === Number(url.searchParams.get('business_id')));
+    if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+    if (business.owner_id !== user.id) {
+      return jsonResponse({ error: 'Only the owner can see lead analytics' }, 403);
+    }
+    // Default window: last 7 days (mirrors backend LeadService::summarize).
+    const to = new Date();
+    const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const inWindow = leadEvents.filter((event) => {
+      if (event.business_id !== business.id) return false;
+      const at = new Date(event.created_at).getTime();
+      return at >= from.getTime() && at <= to.getTime();
+    });
+    const count = (type: LeadEventType) => inWindow.filter((event) => event.event_type === type).length;
+    return jsonResponse({
+      call: count('call'),
+      message: count('message'),
+      directions: count('directions'),
+      total: inWindow.length,
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
+  }
+
+  /* ---- Hidden Gem of the Week: public read (Phase 5) ---- */
+  if (path === '/api/hidden-gem/current' && method === 'GET') {
+    if (!currentHiddenGem) return jsonResponse({ current: null });
+    const post = visiblePosts().find((p) => p.id === currentHiddenGem?.post_id);
+    return jsonResponse({
+      current: { ...clone(currentHiddenGem), post: post ? withLocationPrivacy(clone(post), bearerUser(init)) : null },
+    });
+  }
+
+  /* ---- Trending Now: recency-weighted hot posts (Phase 6) ---- */
+  if (path === '/api/trending' && method === 'GET') {
+    const now = new Date();
+    const windowStart = now.getTime() - TRENDING_WINDOW_DAYS * 86400000;
+    const scored = visiblePosts()
+      .filter((p) => new Date(p.created_at).getTime() >= windowStart)
+      .map((p) => ({ post: p, score: trendScore(p, now) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+    const viewer = bearerUser(init);
+    return jsonResponse({
+      half_life_days: TRENDING_HALF_LIFE_DAYS,
+      window_days: TRENDING_WINDOW_DAYS,
+      posts: clone(scored.map((s) => s.post)).map((p) => withLocationPrivacy(p, viewer)),
+    });
+  }
+
+  /* ---- public collections (browse/read; Phase 7) ---- */
+  if (path === '/api/collections' && method === 'GET') {
+    return jsonResponse(
+      clone(
+        collections.map(collectionPayload).sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+      ),
+    );
+  }
+
+  if (path.startsWith('/api/collections/') && method === 'GET') {
+    const slug = path.slice('/api/collections/'.length);
+    // `mine` falls through to the authenticated collections routes below.
+    if (!slug.includes('/') && slug !== 'mine') {
+      const list = collections.find((c) => c.slug === slug);
+      if (!list) return jsonResponse({ error: 'Collection not found' }, 404);
+      return jsonResponse(clone(collectionDetail(list, bearerUser(init))));
+    }
+  }
+
+  /* ---- contributor summary by numeric user id (public; Phase 7).
+   * `contributors/me` falls through to the authenticated section. ---- */
+  if (path.startsWith('/api/contributors/') && method === 'GET') {
+    const idSeg = path.slice('/api/contributors/'.length);
+    if (/^\d+$/.test(idSeg)) return jsonResponse(contributorSummary(Number(idSeg)));
+  }
+
+  /* ---- Trip Planner: shareable lists of published posts (Phase 6) ---- */
+  const tripPayload = (list: TripListRow) => ({
+    id: list.id,
+    title: list.title,
+    slug: list.slug,
+    description: list.description,
+    is_public: list.is_public,
+    created_at: list.created_at,
+    updated_at: list.updated_at,
+    items_count: list.items.length,
+    owner: (() => {
+      const owner = mockUsers.find((u) => u.id === list.user_id);
+      return owner ? publicUser(owner) : null;
+    })(),
+    items: list.items
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((item) => {
+        const p = visiblePosts().find((vp) => vp.id === item.post_id);
+        // Phase 0 hardening — public viewers get rounded coordinates.
+        return p ? { id: item.id, sort_order: item.sort_order, post: withLocationPrivacy(clone(p), bearerUser(init)) } : null;
+      })
+      .filter(Boolean),
+  });
+
+  if (path === '/api/trips' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const title = String(body?.title || '').trim();
+    if (title.length < 2) return jsonResponse({ error: 'Trip title is required' }, 422);
+    const list: TripListRow = {
+      id: nextTripId++,
+      user_id: user.id,
+      title,
+      slug: tripSlug(),
+      description: String(body?.description || ''),
+      is_public: body?.is_public !== false,
+      items: [],
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    tripLists.push(list);
+    return jsonResponse(clone(tripPayload(list)), 201);
+  }
+
+  if (path === '/api/trips/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(clone(tripLists.filter((l) => l.user_id === user.id).map(tripPayload)));
+  }
+
+  if (path.startsWith('/api/trips/shared/') && method === 'GET') {
+    const slug = path.slice('/api/trips/shared/'.length);
+    const list = tripLists.find((l) => l.slug === slug);
+    if (!list) return jsonResponse({ error: 'Trip not found' }, 404);
+    const viewer = bearerUser(init);
+    if (!list.is_public && viewer?.id !== list.user_id) {
+      return jsonResponse({ error: 'Trip not found' }, 404);
+    }
+    return jsonResponse(clone(tripPayload(list)));
+  }
+
+  if (path.startsWith('/api/trips/')) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const [idSeg, postsSeg, postIdSeg] = path.slice('/api/trips/'.length).split('/');
+    const list = tripLists.find((l) => l.id === Number(idSeg));
+    if (!list) return jsonResponse({ error: 'Trip not found' }, 404);
+    if (list.user_id !== user.id) {
+      return jsonResponse({ error: 'This trip belongs to another traveler.' }, 403);
+    }
+
+    if (postsSeg === 'posts' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body?.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be added to a trip.' }, 422);
+      }
+      if (!list.items.some((i) => i.post_id === post.id)) {
+        const nextOrder = list.items.reduce((max, i) => Math.max(max, i.sort_order), 0);
+        list.items.push({ id: nextTripItemId++, post_id: post.id, sort_order: nextOrder + 1 });
+        list.updated_at = nowISO();
+      }
+      return jsonResponse(clone(tripPayload(list)), 201);
+    }
+
+    if (postsSeg === 'posts' && postIdSeg && method === 'DELETE') {
+      list.items = list.items.filter((i) => i.post_id !== Number(postIdSeg));
+      list.updated_at = nowISO();
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'GET') {
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'PATCH') {
+      if (typeof body?.title === 'string' && body.title.trim().length >= 2) {
+        list.title = body.title.trim();
+      }
+      if ('description' in (body || {})) list.description = String(body.description || '');
+      if (typeof body?.is_public === 'boolean') list.is_public = body.is_public;
+      list.updated_at = nowISO();
+      return jsonResponse(clone(tripPayload(list)));
+    }
+
+    if (!postsSeg && method === 'DELETE') {
+      const idx = tripLists.indexOf(list);
+      tripLists.splice(idx, 1);
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ error: 'Not found' }, 404);
+  }
+
+  /* ---- admin panel behind role:admin (Phase 5) ----
+   * Every action records an audit-log entry; the real backend enforces the
+   * same with middleware('role:admin') + AuditService. */
+  if (path.startsWith('/api/admin')) {
+    const admin = bearerUser(init);
+    if (!admin) return unauthorized();
+    if (admin.role !== 'admin') {
+      return jsonResponse({ error: 'Admin role required' }, 403);
+    }
+
+    if (path === '/api/admin/posts/pending' && method === 'GET') {
+      return jsonResponse(clone(posts.filter((p) => p.status === 'pending_review')));
+    }
+    if (path === '/api/admin/posts/approve' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      post.status = 'published';
+      recordAudit(admin, 'post.approve', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(post));
+    }
+    if (path === '/api/admin/posts/reject' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      post.status = 'rejected';
+      recordAudit(admin, 'post.reject', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(post));
+    }
+
+    if (path === '/api/admin/businesses/pending' && method === 'GET') {
+      return jsonResponse(clone(businesses.filter((b) => b.status === 'pending').map(attachSubscription)));
+    }
+    if (path === '/api/admin/businesses/approve' && method === 'POST') {
+      const business = businesses.find((b) => b.id === Number(body.business_id));
+      if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+      business.status = 'approved';
+      recordAudit(admin, 'business.approve', business.name);
+      return jsonResponse(clone(business));
+    }
+    if (path === '/api/admin/businesses/reject' && method === 'POST') {
+      const business = businesses.find((b) => b.id === Number(body.business_id));
+      if (!business) return jsonResponse({ error: 'Business not found' }, 404);
+      business.status = 'rejected';
+      recordAudit(admin, 'business.reject', business.name);
+      return jsonResponse(clone(business));
+    }
+
+    if (path === '/api/admin/placements' && method === 'GET') {
+      return jsonResponse(clone(partnersData.partners));
+    }
+    if (path === '/api/admin/placements' && method === 'POST') {
+      const placement = {
+        id: Math.max(0, ...partnersData.partners.map((p) => p.id)) + 1,
+        business_name: body.business_name,
+        business_name_kh: body.business_name_kh || null,
+        partner_type: body.partner_type || 'local-guide',
+        province: body.province || 'Phnom Penh',
+        city: body.city || '',
+        phone: body.phone || '',
+        telegram_url: body.telegram_url || 'https://t.me/soksan_network',
+        avatar_url: body.avatar_url || 'https://picsum.photos/seed/soksan-partner/200/200',
+        cover_url: body.cover_url || 'https://picsum.photos/seed/soksan-partner/900/400',
+        description_en: body.description || '',
+        description_kh: body.description || '',
+        rating: 5,
+        review_count: 0,
+        completed_trips: 0,
+        verified: true,
+        active: body.active !== false,
+        monthly_fee: 0,
+        starts_at: body.starts_at || null,
+        ends_at: body.ends_at || null,
+      };
+      partnersData.partners.push(placement);
+      recordAudit(admin, 'placement.schedule', placement.business_name);
+      return jsonResponse(clone(placement), 201);
+    }
+    if (path === '/api/admin/placements/update' && method === 'POST') {
+      const placement = partnersData.partners.find((p) => p.id === Number(body.id));
+      if (!placement) return jsonResponse({ error: 'Placement not found' }, 404);
+      if (typeof body.active === 'boolean') placement.active = body.active;
+      if ('starts_at' in body) placement.starts_at = body.starts_at;
+      if ('ends_at' in body) placement.ends_at = body.ends_at;
+      recordAudit(
+        admin,
+        'placement.update',
+        `${placement.business_name} (active=${placement.active})`,
+      );
+      return jsonResponse(clone(placement));
+    }
+
+    if (path === '/api/admin/hidden-gem' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be the Hidden Gem' }, 422);
+      }
+      const weekStart = new Date();
+      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); // Monday
+      currentHiddenGem = {
+        post_id: post.id,
+        note: body.note || '',
+        picked_by: admin.name,
+        week_start: weekStart.toISOString(),
+      };
+      recordAudit(admin, 'hidden_gem.pick', post.location_name || `post ${post.id}`);
+      return jsonResponse(clone(currentHiddenGem), 201);
+    }
+
+    if (path === '/api/admin/audit-logs' && method === 'GET') {
+      return jsonResponse(clone(auditLogs.slice(0, 200)));
+    }
+
+    /* Phase 7 — duplicate-place candidates; merge ONLY via this endpoint. */
+    if (path === '/api/admin/places/duplicates' && method === 'GET') {
+      return jsonResponse(clone(duplicateCandidates()));
+    }
+    if (path === '/api/admin/places/merge' && method === 'POST') {
+      const canonical = posts.find((p) => p.id === Number(body?.canonical_id));
+      const duplicate = posts.find((p) => p.id === Number(body?.duplicate_id));
+      if (!canonical || !duplicate) return jsonResponse({ error: 'Post not found' }, 404);
+      if (canonical.id === duplicate.id) {
+        return jsonResponse({ error: 'A place cannot be merged into itself.' }, 422);
+      }
+      if (duplicate.status === 'merged') {
+        return jsonResponse({ error: 'This place is already merged.' }, 422);
+      }
+      // The duplicate disappears from every public surface; the canonical
+      // place keeps the full history. Mirrors backend Place.merged_into_id.
+      duplicate.status = 'merged';
+      recordAudit(
+        admin,
+        'place.merge',
+        `${duplicate.location_name} → ${canonical.location_name}`,
+      );
+      return jsonResponse(clone(canonical));
+    }
+  }
+
+  /* ---- collections + contributor self-summary (auth; Phase 7) ---- */
+  if (path === '/api/contributors/me' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    // Only the owner sees their own invite code (mirrors UserResource).
+    return jsonResponse({ ...contributorSummary(user.id), referral_code: user.referral_code });
+  }
+
+  if (path === '/api/collections/mine' && method === 'GET') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    return jsonResponse(
+      clone(collections.filter((c) => c.user_id === user.id).map(collectionPayload)),
+    );
+  }
+
+  if (path === '/api/collections' && method === 'POST') {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const title = String(body?.title || '').trim();
+    if (title.length < 2) return jsonResponse({ error: 'Collection title is required' }, 422);
+    const collection: CollectionRow = {
+      id: nextCollectionId++,
+      user_id: user.id,
+      title,
+      slug: collectionSlug(),
+      description: String(body?.description || ''),
+      post_ids: [],
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    collections.push(collection);
+    return jsonResponse(clone(collectionPayload(collection)), 201);
+  }
+
+  if (path.startsWith('/api/collections/')) {
+    const user = bearerUser(init);
+    if (!user) return unauthorized();
+    const [idSeg, postsSeg, postIdSeg] = path.slice('/api/collections/'.length).split('/');
+    const collection = collections.find((c) => c.id === Number(idSeg));
+    if (!collection) return jsonResponse({ error: 'Collection not found' }, 404);
+    if (collection.user_id !== user.id) {
+      return jsonResponse({ error: 'This collection belongs to another traveler.' }, 403);
+    }
+
+    if (postsSeg === 'posts' && method === 'POST') {
+      const post = posts.find((p) => p.id === Number(body?.post_id));
+      if (!post) return jsonResponse({ error: 'Post not found' }, 404);
+      if (post.status === 'pending_review' || post.status === 'rejected') {
+        return jsonResponse({ error: 'Only published posts can be collected.' }, 422);
+      }
+      if (!collection.post_ids.includes(post.id)) {
+        collection.post_ids.push(post.id);
+        collection.updated_at = nowISO();
+      }
+      return jsonResponse(clone(collectionPayload(collection)), 201);
+    }
+
+    if (postsSeg === 'posts' && postIdSeg && method === 'DELETE') {
+      collection.post_ids = collection.post_ids.filter((id) => id !== Number(postIdSeg));
+      collection.updated_at = nowISO();
+      return jsonResponse(clone(collectionPayload(collection)));
+    }
+
+    if (!postsSeg && method === 'PATCH') {
+      if (typeof body?.title === 'string' && body.title.trim().length >= 2) {
+        collection.title = body.title.trim();
+      }
+      if ('description' in (body || {})) collection.description = String(body.description || '');
+      collection.updated_at = nowISO();
+      return jsonResponse(clone(collectionPayload(collection)));
+    }
+
+    if (!postsSeg && method === 'DELETE') {
+      collections.splice(collections.indexOf(collection), 1);
+      return jsonResponse({ ok: true });
+    }
+
+    return jsonResponse({ error: 'Not found' }, 404);
   }
 
   /* ---- conversations / messages ---- */
@@ -390,6 +2074,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       return jsonResponse(clone(messagesByConversation[conversationId] || []));
     }
     if (method === 'POST') {
+      if (!bearerUser(init)) return unauthorized();
       const conversationId = Number(body.conversation_id);
       const conversation = conversations.find((c) => c.id === conversationId);
       if (!conversation) return jsonResponse({ error: 'Conversation not found' }, 404);
@@ -427,7 +2112,10 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
   if (path === '/api/partners') {
     if (method === 'GET') {
       const type = url.searchParams.get('type');
-      const list = type ? partnersData.partners.filter((p) => p.partner_type === type) : partnersData.partners;
+      // Phase 4: partners are placements with an admin date window — expired
+      // or future placements never reach the public list.
+      let list = partnersData.partners.filter((p) => isPlacementActive(p));
+      if (type) list = list.filter((p) => p.partner_type === type);
       return jsonResponse({
         partners: clone(list),
         categories: clone(partnersData.categories),
@@ -435,6 +2123,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       });
     }
     if (method === 'POST') {
+      if (!bearerUser(init)) return unauthorized();
       const required = ['business_name', 'owner_name', 'partner_type', 'province', 'city', 'phone'];
       if (required.some((key) => !body[key])) return jsonResponse({ error: 'All fields are required' }, 400);
       return jsonResponse({ ok: true, payment_ref: paymentRef('PRT') }, 201);
@@ -447,6 +2136,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
   if (path === '/api/contacts') return jsonResponse(clone(contacts));
 
   if (path === '/api/bookings' && method === 'POST') {
+    if (!bearerUser(init)) return unauthorized();
     if (!body.service_id || !body.guest_name?.trim()) {
       return jsonResponse({ error: 'Booking details are incomplete' }, 400);
     }
@@ -463,6 +2153,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
       });
     }
     if (method === 'POST') {
+      if (!bearerUser(init)) return unauthorized();
       const post = posts.find((p) => p.id === body.post_id);
       if (!post) return jsonResponse({ error: 'Post not found' }, 404);
       const campaign: Campaign = {
@@ -488,6 +2179,7 @@ async function handleApi(url: URL, init?: RequestInit): Promise<Response> {
 
   /* ---- upload ---- */
   if (path === '/api/upload' && method === 'POST') {
+    if (!bearerUser(init)) return unauthorized();
     if (!body.fileBase64 || !body.contentType) return jsonResponse({ error: 'Upload failed' }, 400);
     return jsonResponse({ url: `data:${body.contentType};base64,${body.fileBase64}` }, 201);
   }

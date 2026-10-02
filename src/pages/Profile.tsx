@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -19,12 +20,15 @@ import {
   CircleCheck,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LoadingState, ErrorState } from '../components/States';
 import ContactActions from '../components/ContactActions';
+import ContributorCard from '../components/ContributorCard';
 import type { Profile as ProfileType, Service, Contact } from '../types';
 
 export default function Profile() {
   const { language, t } = useLanguage();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileType | null>(null);
   const [contact, setContact] = useState<Contact | null>(null);
@@ -42,9 +46,9 @@ export default function Profile() {
     setError('');
     try {
       const [profileRes, servicesRes, contactsRes] = await Promise.all([
-        fetch('/api/profile?id=1'),
-        fetch('/api/services?profile_id=1'),
-        fetch('/api/contacts?profile_id=1'),
+        apiFetch('/profile?id=1'),
+        apiFetch('/services?profile_id=1'),
+        apiFetch('/contacts?profile_id=1'),
       ]);
       if (!profileRes.ok || !servicesRes.ok || !contactsRes.ok) throw new Error('Could not load this guide profile');
       const [profileData, servicesData, contactData] = await Promise.all([
@@ -85,7 +89,7 @@ export default function Profile() {
     setPaymentState('processing');
     setFormError('');
     try {
-      const res = await fetch('/api/bookings', {
+      const res = await apiFetch('/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ service_id: selectedService.id, guest_name: guestName, total }),
@@ -162,6 +166,9 @@ export default function Profile() {
               <span key={badge}>{badge}</span>
             ))}
           </div>
+          {/* Phase 7 — live, transparent contributor level for the signed-in
+              traveler (derived from their published posts; never stored). */}
+          {user && <ContributorCard />}
         </div>
       </section>
 

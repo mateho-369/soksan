@@ -1,0 +1,283 @@
+/* Phase 2 map styles. Uses the shared design tokens from index.css. */
+
+.soksan-map-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  border-radius: var(--radius-card, 18px);
+  overflow: hidden;
+  background: var(--sage-pale, #e6efe6);
+}
+
+.soksan-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.soksan-map-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--cream, #f9f6f0) 82%, transparent);
+  color: var(--muted, #748078);
+  font-size: 0.9rem;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* ── pins ─────────────────────────────────────────────────────────────── */
+
+.soksan-marker {
+  position: relative;
+  width: 34px;
+  height: 40px;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.soksan-marker span {
+  position: relative;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50% 50% 50% 8px;
+  background: var(--cream, #f9f6f0);
+  border: 2px solid var(--sage-dark, #5f7d6a);
+  font-size: 15px;
+  line-height: 1;
+  box-shadow: 0 4px 12px rgb(12 18 14 / 22%);
+  transform: rotate(-45deg);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.soksan-marker span em {
+  display: block;
+  font-style: normal;
+  transform: rotate(45deg);
+}
+
+.soksan-marker i {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 10px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(12 18 14 / 30%);
+  transform: translateX(-50%);
+}
+
+.soksan-marker:hover span,
+.soksan-marker:focus-visible span {
+  border-color: var(--accent, #ff6b4a);
+  transform: rotate(-45deg) scale(1.08);
+}
+
+.soksan-marker.selected span {
+  background: var(--accent-soft, #ffe6de);
+  border-color: var(--accent, #ff6b4a);
+  transform: rotate(-45deg) scale(1.12);
+}
+
+.soksan-marker:focus-visible {
+  outline: none;
+}
+
+/* manually dropped pin */
+.soksan-picked-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 4px;
+  background: var(--accent, #ff6b4a);
+  border: 3px solid var(--cream, #f9f6f0);
+  box-shadow: 0 4px 10px rgb(12 18 14 / 35%);
+  transform: rotate(-45deg);
+}
+
+/* ── Discover page: the map fills the whole stage ─────────────────────── */
+
+.map-stage .soksan-map-shell {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  min-height: 0;
+}
+
+/* ── place picker modal ───────────────────────────────────────────────── */
+
+.place-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(12 18 14 / 55%);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.place-picker {
+  width: min(560px, 100%);
+  max-height: min(640px, 92vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--cream, #f9f6f0);
+  border-radius: var(--radius-card, 18px);
+  box-shadow: 0 24px 60px rgb(12 18 14 / 40%);
+  overflow: hidden;
+  outline: none;
+}
+
+.place-picker-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+}
+
+.place-picker-header h2 {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: 1.15rem;
+  color: var(--night, #0c120e);
+}
+
+.place-picker-header p {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #748078);
+}
+
+.place-picker-header button {
+  border: 0;
+  background: var(--sage-pale, #e6efe6);
+  color: var(--sage-dark, #5f7d6a);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.place-picker-map {
+  flex: 1;
+  min-height: 260px;
+  margin: 0 14px;
+  border-radius: 14px;
+  cursor: crosshair;
+}
+
+.place-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px 16px;
+}
+
+.place-picker-coords {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted, #748078);
+  font-variant-numeric: tabular-nums;
+}
+
+.place-picker-warn {
+  margin-left: 8px;
+  color: var(--accent-deep, #e8543a);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.place-picker-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-pill, 999px);
+  padding: 9px 16px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background: var(--accent, #ff6b4a);
+  color: #fff;
+}
+
+.place-picker-confirm:disabled {
+  background: var(--sage-pale, #e6efe6);
+  color: var(--muted, #748078);
+  cursor: not-allowed;
+}
+
+/* ── composer pin row ─────────────────────────────────────────────────── */
+
+.composer-pin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.composer-pin-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 35%, transparent);
+  background: var(--sage-pale, #e6efe6);
+  color: var(--sage-dark, #5f7d6a);
+  border-radius: var(--radius-pill, 999px);
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.composer-pin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted, #748078);
+  background: var(--accent-soft, #ffe6de);
+  border-radius: var(--radius-pill, 999px);
+  padding: 5px 6px 5px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-pin-chip button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--accent-deep, #e8543a);
+  border-radius: 50%;
+  padding: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soksan-marker span {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .place-picker {
+    max-height: 94vh;
+  }
+  .place-picker-map {
+    margin: 0 10px;
+  }
+}

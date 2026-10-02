@@ -1,4 +1,4 @@
-import { LoaderCircle, CircleAlert } from 'lucide-react';
+import { LoaderCircle, CircleAlert, Compass } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export function LoadingState({ compact = false }: { compact?: boolean }) {
@@ -19,6 +19,16 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       <strong>Something wandered off</strong>
       <p>{message}</p>
       {onRetry && <button onClick={onRetry}>{t('retry')}</button>}
+    </div>
+  );
+}
+
+export function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="empty-state">
+      <Compass />
+      <h3>{title}</h3>
+      <p>{body}</p>
     </div>
   );
 }

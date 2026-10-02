@@ -1,3 +1,4 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type TouchEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -9,7 +10,6 @@ import {
   ChevronRight,
   BadgeCheck,
   MapPin,
-  Heart,
   MessageCircle,
   Share2,
   Ellipsis,
@@ -18,8 +18,14 @@ import {
   Smile,
   Send,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import '../styles/safety.css';
 import { LoadingState } from './States';
+import LikeButton from '../ui/LikeButton';
+import AnimatedNumber from '../ui/AnimatedNumber';
+import { ReportDialog } from './ReportDialog';
 import type { Post, Comment, CommentAsset, MediaItem } from '../types';
 
 interface PostViewerProps {
@@ -40,6 +46,8 @@ export default function PostViewer({
   initialCommentsOpen = false,
 }: PostViewerProps) {
   const { language, t } = useLanguage();
+  const { requireAuth } = useAuth();
+  const navigate = useNavigate();
   const [mediaIndex, setMediaIndex] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(initialCommentsOpen);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -49,6 +57,8 @@ export default function PostViewer({
   const [orientation, setOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
+  // Phase 0 hardening — report/block/mute dialog lives behind the ⋯ action.
+  const [reportOpen, setReportOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deviceLandscape, setDeviceLandscape] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -82,7 +92,7 @@ export default function PostViewer({
     if (!post) return;
     setLoadingComments(true);
     try {
-      const res = await fetch(`/api/comments?post_id=${post.id}`);
+      const res = await apiFetch(`/comments?post_id=${post.id}`);
       if (!res.ok) throw new Error('Could not load comments');
       const data = await res.json();
       setComments(data.comments);
@@ -102,7 +112,6 @@ export default function PostViewer({
     setPaused(false);
     setMuted(true);
     setChromeVisible(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post?.id, initialCommentsOpen]);
 
   useEffect(() => {
@@ -238,16 +247,17 @@ export default function PostViewer({
   const submitComment = async (event?: FormEvent, asset?: CommentAsset) => {
     event?.preventDefault();
     if (!post || (!draft.trim() && !asset)) return;
+    if (!requireAuth(navigate)) return;
     setSending(true);
     setError('');
     try {
-      const res = await fetch('/api/comments', {
+      const res = await apiFetch('/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id, body: draft, asset_id: asset?.id || null }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Comment failed');
+      if (!res.ok) throw new Error(data.message || data.error || 'Comment failed');
       setDraft('');
       setPicker(null);
       await loadComments();
@@ -260,6 +270,7 @@ export default function PostViewer({
   };
 
   const toggleCommentLike = async (id: number) => {
+    if (!requireAuth(navigate)) return;
     setComments((list) =>
       list.map((comment) =>
         comment.id === id
@@ -271,7 +282,7 @@ export default function PostViewer({
           : comment,
       ),
     );
-    await fetch('/api/comments', {
+    await apiFetch('/comments', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
@@ -383,6 +394,14 @@ export default function PostViewer({
             </button>
           </div>
           <p>{caption}</p>
+          {/* Phase 9 — self-reported safety & accessibility observations. */}
+          {(post.safety_tags || []).length > 0 && (
+            <ul className="safety-display" aria-label={t('safety.blockLabel')}>
+              {(post.safety_tags || []).map((tag) => (
+                <li key={tag}>{t(`safety.tag.${tag}`)}</li>
+              ))}
+            </ul>
+          )}
           <span>{post.hashtags}</span>
         </div>
 
@@ -393,30 +412,38 @@ export default function PostViewer({
               <b>{muted ? 'Sound' : 'On'}</b>
             </button>
           )}
-          <button className={post.is_liked ? 'liked' : ''} onClick={() => onInteract(post.id, 'like')}>
-            <span>
-              <Heart fill={post.is_liked ? 'currentColor' : 'none'} />
-            </span>
-            <b>{post.like_count}</b>
-          </button>
-          <button onClick={() => setCommentsOpen(true)}>
+          <LikeButton
+            liked={Boolean(post.is_liked)}
+            count={post.like_count}
+            onToggle={() => onInteract(post.id, 'like')}
+            variant="rail"
+            size="lg"
+            label={t('social.like')}
+          />
+          <button onClick={() => setCommentsOpen(true)} aria-label={t('social.comment')}>
             <span>
               <MessageCircle />
             </span>
-            <b>{post.comment_count}</b>
+            <b>
+              <AnimatedNumber value={post.comment_count} />
+            </b>
           </button>
-          <button onClick={() => onInteract(post.id, 'share')}>
+          <button onClick={() => onInteract(post.id, 'share')} aria-label={t('social.share')}>
             <span>
               <Share2 />
             </span>
-            <b>{post.share_count}</b>
+            <b>
+              <AnimatedNumber value={post.share_count} />
+            </b>
           </button>
-          <button>
+          <button onClick={() => setReportOpen(true)} aria-label={t('moderation.moreActions')}>
             <span>
               <Ellipsis />
             </span>
           </button>
         </div>
+
+        {reportOpen && <ReportDialog post={post} onClose={() => setReportOpen(false)} />}
 
         {commentsOpen && (
           <button className="comment-drawer-backdrop" onClick={() => setCommentsOpen(false)} aria-label="Close comments" />
@@ -457,12 +484,14 @@ export default function PostViewer({
                     )}
                     <span>
                       {new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      <button
-                        className={comment.is_liked ? 'liked' : ''}
-                        onClick={() => toggleCommentLike(comment.id)}
-                      >
-                        Like {comment.like_count > 0 && comment.like_count}
-                      </button>
+                      <LikeButton
+                        liked={Boolean(comment.is_liked)}
+                        count={comment.like_count > 0 ? comment.like_count : undefined}
+                        onToggle={() => toggleCommentLike(comment.id)}
+                        variant="plain"
+                        size="sm"
+                        label="Like comment"
+                      />
                       <button>Reply</button>
                     </span>
                   </div>

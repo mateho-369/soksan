@@ -1,0 +1,4 @@
+[
+  { "id": 1, "participant_name": "Malis Chea", "participant_name_kh": "ជា មាលិស", "participant_role": "Local Guide", "avatar_url": "https://picsum.photos/seed/soksan-malis/100/100", "active": true, "last_message": "The coastal trail is dry this week — mornings are best.", "last_time": "2h", "unread": 1, "updated_at": "2026-09-29T02:10:00+00:00" },
+  { "id": 2, "participant_name": "Sreyneang Keo", "participant_name_kh": "កែវ ស្រីនាង", "participant_role": "Homestay Host", "avatar_url": "https://picsum.photos/seed/soksan-sreyneang/100/100", "active": false, "last_message": "Yes, the floating room is free Friday.", "last_time": "1d", "unread": 0, "updated_at": "2026-09-28T06:40:00+00:00" }
+]

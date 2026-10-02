@@ -1,0 +1,4 @@
+[
+  { "id": 1, "title": "Kampot Slow Weekend", "title_kh": "ចុងសប្ដាហ៍យឺតៗនៅកំពត", "province": "Kampot", "days": 2, "stops": ["Bokor Cloud Station", "Night Market Pepper Squid", "River sunset"], "image_url": "https://picsum.photos/seed/soksan-itin1/900/600", "guide_name": "Malis Chea", "price": 39 },
+  { "id": 2, "title": "Cardamom Forest Days", "title_kh": "ថ្ងៃក្នុងព្រៃក្រវាញ", "province": "Koh Kong", "days": 3, "stops": ["Areng Valley Mist", "Chi Phat river bend", "Village homestay"], "image_url": "https://picsum.photos/seed/soksan-itin2/900/600", "guide_name": "Vibol Rin", "price": 89 }
+]

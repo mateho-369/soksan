@@ -1,3 +1,12 @@
+export interface AuthUser {
+  id: number;
+  name: string;
+  name_kh: string | null;
+  email: string;
+  avatar_url: string;
+  role: 'user' | 'admin';
+}
+
 export interface Category {
   id: number;
   label_en: string;
@@ -72,7 +81,22 @@ export interface Post {
   like_count: number;
   comment_count: number;
   share_count: number;
+  view_count?: number;
+  commune_id?: number | null;
+  commune_name?: string;
+  lat?: number | null;
+  lng?: number | null;
+  /** Phase 5 moderation pipeline: published | pending_review | rejected. */
+  status?: string;
+  /** Phase 9 — self-reported safety & accessibility tags (closed allow-list). */
+  safety_tags?: string[];
+  /** Phase 0 hardening — location privacy. Public decimal precision
+   *  (4 ≈ 11m, 3 ≈ 110m, 2 ≈ 1.1km); exact coords are owner/admin only. */
+  location_precision?: number;
+  is_sensitive_location?: boolean;
+  has_exact_location?: boolean;
   is_liked: boolean;
+  is_saved?: boolean;
   business_name: string | null;
   destination_id: number | null;
   created_at: string;
@@ -110,9 +134,53 @@ export interface Destination {
   budget_min: number;
   budget_max: number;
   image_url: string;
-  map_x: number;
-  map_y: number;
+  lat: number;
+  lng: number;
   is_featured: boolean;
+}
+
+/* Phase 3 — business registration */
+export type BusinessTier = 'verified' | 'boosted';
+export type BusinessStatus = 'pending' | 'approved' | 'rejected';
+
+export interface BusinessSubscription {
+  id: number;
+  business_id: number;
+  status: 'pending_payment' | 'active' | 'expired' | 'cancelled';
+  amount_usd: number;
+  currency: string;
+  invoice_ref: string;
+  starts_at: string | null;
+  expires_at: string | null;
+  paid_at: string | null;
+}
+
+export interface Business {
+  id: number;
+  owner_id: number;
+  name: string;
+  name_kh: string | null;
+  category: string;
+  description: string;
+  phone: string;
+  tier: BusinessTier;
+  status: BusinessStatus;
+  place_name: string;
+  lat: number | null;
+  lng: number | null;
+  subscription: BusinessSubscription | null;
+  created_at: string;
+}
+
+/** KHQR invoice returned by POST /businesses/:id/upgrade. */
+export interface KhqrInvoice {
+  invoice_ref: string;
+  business_id: number;
+  amount_usd: number;
+  currency: string;
+  /** What the QR encodes (real Bakong KHQR string in production). */
+  khqr_payload: string;
+  expires_at: string;
 }
 
 export interface Itinerary {
@@ -207,6 +275,21 @@ export interface Partner {
   verified: boolean;
   active: boolean;
   monthly_fee: number;
+  /** Phase 4 — admin-managed visibility window (null end = open-ended). */
+  starts_at?: string | null;
+  ends_at?: string | null;
+}
+
+/** Phase 4 — lead tracking (call / message / directions). */
+export type LeadEventType = 'call' | 'message' | 'directions';
+
+export interface LeadSummary {
+  call: number;
+  message: number;
+  directions: number;
+  total: number;
+  from: string;
+  to: string;
 }
 
 export interface Profile {
@@ -287,4 +370,78 @@ export interface RankProvince {
   rank: number;
   active_score: number;
   spots: RankSpot[];
+}
+
+/* Phase 1 — Cambodia administrative hierarchy (commune -> district -> province) */
+export interface GeoProvince {
+  id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+  icon?: string;
+}
+export interface GeoDistrict {
+  id: number;
+  province_id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+}
+export interface GeoCommune {
+  id: number;
+  district_id: number;
+  code: string;
+  name: string;
+  name_kh: string;
+  latitude?: number;
+  longitude?: number;
+}
+export interface Geography {
+  provinces: GeoProvince[];
+  districts: GeoDistrict[];
+  communes: GeoCommune[];
+}
+
+/* Phase 6 — Trip Planner: shareable lists of published posts. */
+export interface TripItem {
+  id: number;
+  sort_order: number;
+  post: Post;
+}
+
+export interface Trip {
+  id: number;
+  title: string;
+  slug: string;
+  description: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+  items_count: number;
+  owner?: AuthUser | null;
+  items?: TripItem[];
+}
+
+/* Phase 7 — public Collections + contributor levels. */
+export interface Collection {
+  id: number;
+  title: string;
+  slug: string;
+  description: string;
+  posts_count: number;
+  created_at: string;
+  updated_at: string;
+  owner?: AuthUser | null;
+  items?: TripItem[];
+}
+
+export interface ContributorSummary {
+  quality_points: number;
+  level: { floor: number; key: string; label: string };
+  next_level: { floor: number; key: string; label: string } | null;
+  badges: string[];
+  formula: string;
+  /** Phase 8 — present only on /contributors/me (never on public reads). */
+  referral_code?: string;
+  referred_signups?: number;
 }

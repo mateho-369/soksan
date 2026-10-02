@@ -1,72 +1,35 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Navigation, Search, ChevronDown, Star, MapPin, LocateFixed, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LoadingState, ErrorState } from '../components/States';
+import { LoadingState, ErrorState, EmptyState } from '../components/States';
+import SokSanMap from '../components/map/SokSanMap';
+import TrendingRail from '../components/TrendingRail';
+import { isInsideCambodia, type LatLng } from '../lib/mapConfig';
 import type { Destination, Category } from '../types';
 
-export default function Discover() {
-  const { language, t } = useLanguage();
-  const [searchParams] = useSearchParams();
-  const [destinations, setDestinations] = useState<Destination[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [category, setCategory] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+interface DestinationListProps {
+  destinations: Destination[];
+  selectedId: number | null;
+  language: 'en' | 'kh';
+  onSelect: (id: number) => void;
+}
 
-  const query = searchParams.get('q') || '';
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const params = new URLSearchParams();
-      if (category) params.set('category', category);
-      if (query) params.set('search', query);
-      const [destinationsRes, categoriesRes] = await Promise.all([
-        fetch(`/api/destinations?${params}`),
-        fetch('/api/categories'),
-      ]);
-      if (!destinationsRes.ok || !categoriesRes.ok) throw new Error('The map could not find its way.');
-      const [destinationsData, categoriesData] = await Promise.all([destinationsRes.json(), categoriesRes.json()]);
-      setDestinations(destinationsData);
-      setCategories(categoriesData);
-      if (destinationsData.length) {
-        setSelectedId((current) =>
-          current && destinationsData.some((d: Destination) => d.id === current) ? current : destinationsData[0].id,
-        );
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load map');
-    } finally {
-      setLoading(false);
-    }
-  }, [query, category]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
-
-  const DestinationList = () => (
+function DestinationList({ destinations, selectedId, language, onSelect }: DestinationListProps) {
+  return (
     <div className="destination-list">
       {destinations.map((destination, index) => (
         <motion.button
           key={destination.id}
           className={`destination-card ${selectedId === destination.id ? 'selected' : ''}`}
-          onClick={() => {
-            setSelectedId(destination.id);
-            setSheetOpen(false);
-          }}
+          onClick={() => onSelect(destination.id)}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
         >
-          <img src={destination.image_url} alt={destination.name} />
+          <img src={destination.image_url} alt={destination.name} loading="lazy" />
           <div className="destination-card-body">
             <div className="destination-meta">
               <span>
@@ -92,6 +55,93 @@ export default function Discover() {
       ))}
     </div>
   );
+}
+
+export default function Discover() {
+  const { language, t } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [category, setCategory] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [focus, setFocus] = useState<(LatLng & { token: number }) | null>(null);
+
+  const query = searchParams.get('q') || '';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (query) params.set('search', query);
+      const [destinationsRes, categoriesRes] = await Promise.all([
+        apiFetch(`/destinations?${params}`),
+        apiFetch('/categories'),
+      ]);
+      if (!destinationsRes.ok || !categoriesRes.ok) throw new Error('The map could not find its way.');
+      const [destinationsData, categoriesData] = await Promise.all([destinationsRes.json(), categoriesRes.json()]);
+      setDestinations(destinationsData);
+      setCategories(categoriesData);
+      if (destinationsData.length) {
+        setSelectedId((current) =>
+          current && destinationsData.some((d: Destination) => d.id === current) ? current : destinationsData[0].id,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load map');
+    } finally {
+      setLoading(false);
+    }
+  }, [query, category]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const selected = useMemo(() => destinations.find((d) => d.id === selectedId), [destinations, selectedId]);
+
+  const mapPins = useMemo(
+    () =>
+      destinations.map((destination) => ({
+        id: destination.id,
+        lat: destination.lat,
+        lng: destination.lng,
+        label: language === 'kh' ? destination.name_kh : destination.name,
+        icon: destination.category_icon,
+      })),
+    [destinations, language],
+  );
+
+  const locateMe = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        // Stay honest to the launch region: ignore positions far outside it.
+        if (!isInsideCambodia(point)) return;
+        setFocus({ ...point, token: Date.now() });
+      },
+      () => {
+        /* permission denied — leave the map where it is */
+      },
+    );
+  };
+
+  const destinationList = (
+    <DestinationList
+      destinations={destinations}
+      selectedId={selectedId}
+      language={language}
+      onSelect={(id) => {
+        setSelectedId(id);
+        setSheetOpen(false);
+      }}
+    />
+  );
 
   return (
     <div className="discover-page">
@@ -103,6 +153,8 @@ export default function Discover() {
           <h1>{t('discoveryTitle')}</h1>
           <p>{t('discoverySubtitle')}</p>
         </div>
+        {/* Phase 6 — recency-weighted hot posts, refreshed per visit. */}
+        <TrendingRail />
         <div className="discover-filters">
           <Search size={17} />
           <select value={category} onChange={(event) => setCategory(event.target.value)} aria-label="Filter places">
@@ -119,28 +171,27 @@ export default function Discover() {
           <strong>{destinations.length}</strong> {t('nearby')}
           <span>{t('budget')} · USD</span>
         </div>
-        {loading ? <LoadingState compact /> : error ? <ErrorState message={error} onRetry={load} /> : <DestinationList />}
+        {loading ? (
+          <LoadingState compact />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : destinations.length === 0 ? (
+          <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
+        ) : (
+          destinationList
+        )}
       </aside>
 
       <section className="map-stage">
-        <div className="map-topography" />
-        <div className="map-label label-north">Preah Vihear</div>
-        <div className="map-label label-center">Tonlé Sap</div>
-        <div className="map-label label-east">Mondulkiri</div>
-        <div className="map-label label-south">Gulf of Thailand</div>
-        {destinations.map((destination) => (
-          <button
-            key={destination.id}
-            className={`map-pin ${selectedId === destination.id ? 'selected' : ''}`}
-            style={{ left: `${destination.map_x}%`, top: `${destination.map_y}%` }}
-            onClick={() => setSelectedId(destination.id)}
-            aria-label={destination.name}
-          >
-            <span>{destination.category_icon}</span>
-            <i />
-          </button>
-        ))}
-        <button className="locate-button">
+        <SokSanMap
+          className="discover-map"
+          pins={mapPins}
+          selectedId={selectedId}
+          onPinClick={(id) => setSelectedId(Number(id))}
+          focus={focus}
+          ariaLabel={t('map.discoverLabel')}
+        />
+        <button className="locate-button" onClick={locateMe}>
           <LocateFixed size={19} /> <span>Near me</span>
         </button>
         {selected && (
@@ -187,7 +238,13 @@ export default function Discover() {
               <X />
             </button>
           </div>
-          {loading ? <LoadingState compact /> : <DestinationList />}
+          {loading ? (
+            <LoadingState compact />
+          ) : destinations.length === 0 ? (
+            <EmptyState title={t('discovery.empty')} body={t('discovery.emptyHelp')} />
+          ) : (
+            destinationList
+          )}
         </div>
       </section>
     </div>

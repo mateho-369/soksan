@@ -1,4 +1,6 @@
+import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Megaphone,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LoadingState, ErrorState } from '../components/States';
 import BoostModal from '../components/BoostModal';
+import { useLanguage } from '../contexts/LanguageContext';
 import type { Campaign, Province, Post } from '../types';
 
 interface Dashboard {
@@ -23,6 +26,7 @@ interface Dashboard {
 }
 
 export default function MerchantCenter() {
+  const { t } = useLanguage();
   const [data, setData] = useState<Dashboard>({ campaigns: [], provinces: [], posts: [] });
   const [boostPost, setBoostPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,7 +36,7 @@ export default function MerchantCenter() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/boosts');
+      const res = await apiFetch('/boosts');
       if (!res.ok) throw new Error('Merchant insights are unavailable');
       setData(await res.json());
     } catch (err) {
@@ -87,6 +91,20 @@ export default function MerchantCenter() {
         <button onClick={() => setBoostPost(data.posts[0] || null)}>
           <Plus /> Create a business boost
         </button>
+      </section>
+
+      {/* Phase 3 entry point: business registration + owner dashboard. */}
+      <section className="merchant-business-cta">
+        <div>
+          <strong>{t('business.registerTitle')}</strong>
+          <small>{t('business.freeVerifiedNote')}</small>
+        </div>
+        <div className="merchant-business-cta-actions">
+          <Link to="/business/register">{t('business.registerAction')}</Link>
+          <Link to="/business/dashboard" className="secondary">
+            {t('business.dashboardTitle')}
+          </Link>
+        </div>
       </section>
 
       <section className="merchant-metrics">
