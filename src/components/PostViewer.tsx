@@ -379,7 +379,7 @@ export default function PostViewer({
 
         <div className="viewer-meta-overlay viewer-chrome">
           <div className="viewer-overlay-author">
-            <img src={post.author.avatar_url} alt="" />
+            <img src={post.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
             <div>
               <strong>
                 {language === 'kh' && post.author.name_kh ? post.author.name_kh : post.author.name}

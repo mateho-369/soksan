@@ -1,13 +1,25 @@
 import { apiFetch } from '../lib/http';
 import { ACCESS_TAGS, MAX_SAFETY_TAGS, SAFETY_TAGS, type SafetyTag } from '../lib/safetyTags';
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react';
 import '../styles/safety.css';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ImagePlus, Play, X, MapPin, Camera, Smile, Send, UserRound, MapPinned } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ImagePlus,
+  Play,
+  X,
+  MapPin,
+  Camera,
+  Smile,
+  Send,
+  UserRound,
+  MapPinned,
+  UploadCloud,
+} from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import PlacePicker from './map/PlacePicker';
+import { springs } from '../ui/motion';
 import type { LatLng } from '../lib/mapConfig';
 import type { Category, Province, Geography } from '../types';
 
@@ -24,6 +36,8 @@ interface PostComposerProps {
   onPosted: () => void;
 }
 
+const CAPTION_MAX = 2200;
+
 export default function PostComposer({ categories, provinces, onPosted }: PostComposerProps) {
   const { language, t } = useLanguage();
   const { user, initializing } = useAuth();
@@ -36,6 +50,7 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
   const [province, setProvince] = useState('');
   const [category, setCategory] = useState('hidden-gems');
   const [mediaFiles, setMediaFiles] = useState<PendingMedia[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -88,7 +103,9 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           : current,
     );
 
-  const canPublish = Boolean(caption.trim() && placeName.trim() && province && category && mediaFiles.length > 0 && !publishing);
+  const canPublish = Boolean(
+    caption.trim() && placeName.trim() && province && category && mediaFiles.length > 0 && !publishing,
+  );
 
   const momentsLabel = useMemo(
     () => (mediaFiles.length === 1 ? '1 moment' : `${mediaFiles.length} moments`),
@@ -112,9 +129,8 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
       video.src = objectUrl;
     });
 
-  const onFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
+  const processFiles = async (files: File[]) => {
+    if (!files.length) return;
     const videos = files.filter((file) => file.type.startsWith('video/'));
     const images = files.filter((file) => file.type.startsWith('image/'));
     const hasVideoAlready = mediaFiles.some((item) => item.media_type === 'video');
@@ -163,6 +179,32 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
     setError('');
     setMediaFiles((current) => [...current, ...additions]);
     setOpen(true);
+  };
+
+  const onFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    await processFiles(files);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragging(false);
+    const files = Array.from(event.dataTransfer?.files || []);
+    await processFiles(files);
   };
 
   const removeMedia = (index: number) =>
@@ -217,15 +259,10 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           province,
           caption,
           commune_id: communeId ? Number(communeId) : null,
-          // Optional manual pin — matches the backend StorePostRequest.
           latitude: pin ? pin.lat : null,
           longitude: pin ? pin.lng : null,
-          // Phase 0 hardening — location privacy choice (approximate is the
-          // default; exact is an explicit opt-in; sensitive caps public
-          // precision to ~1.1km).
           location_precision: locationChoice === 'exact' ? 6 : locationChoice === 'sensitive' ? 2 : 3,
           is_sensitive_location: locationChoice === 'sensitive',
-          // Phase 9 — optional safety & accessibility observations.
           safety_tags: safetyTags,
           media: uploaded,
         }),
@@ -251,9 +288,6 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
     }
   };
 
-  // Guests can browse everything for free; posting needs a free account.
-  // While the stored session is still loading, render nothing to avoid a
-  // login CTA flashing for returning users.
   if (initializing) {
     return <section className="post-composer" aria-busy="true" />;
   }
@@ -265,218 +299,285 @@ export default function PostComposer({ categories, provinces, onPosted }: PostCo
           <h3>{t('auth.composerLoginTitle')}</h3>
           <p>{t('auth.composerLoginBody')}</p>
         </div>
-        <button className="composer-guest-cta" onClick={() => navigate('/login')}>
+        <button type="button" className="composer-guest-cta" onClick={() => navigate('/login')}>
           <UserRound size={16} /> {t('auth.composerLoginCta')}
         </button>
       </section>
     );
   }
 
+  const charRatio = Math.min(1, caption.length / CAPTION_MAX);
+
   return (
-    <motion.section className={`post-composer ${open ? 'open' : ''}`} layout>
+    <motion.section
+      className={`post-composer ${open ? 'open' : ''} ${isDragging ? 'dragging' : ''}`}
+      layout
+      transition={springs.gentle}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="composer-start">
-        <img src={user.avatar_url} alt="" />
-        <button onClick={() => setOpen(true)}>{t('social.composerPrompt')}</button>
+        <img src={user.avatar_url || '/images/traveler-dara.jpg'} alt="" />
+        <button type="button" onClick={() => setOpen(true)}>
+          {t('social.composerPrompt')}
+        </button>
         <span className="composer-free-chip">{t('access.freeChip')}</span>
-        <label>
-          <ImagePlus />
+        <label aria-label={t('social.addMedia')} title={t('social.addMedia')}>
+          <ImagePlus size={19} />
           <input type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} />
         </label>
       </div>
-      {open && (
-        <div className="composer-expanded">
-          <div className="composer-free-note">{t('access.postingFree')}</div>
-          <textarea
-            value={caption}
-            onChange={(event) => setCaption(event.target.value)}
-            placeholder={t('social.storyPrompt')}
-            maxLength={2200}
-          />
-          {mediaFiles.length > 0 && (
-            <div className={`composer-media-grid count-${Math.min(mediaFiles.length, 4)}`}>
-              {mediaFiles.map((item, index) => (
-                <div key={item.preview}>
-                  {item.media_type === 'video' ? <video src={item.preview} muted /> : <img src={item.preview} alt="" />}
-                  {item.media_type === 'video' && (
-                    <span>
-                      <Play /> {item.duration_seconds}s
-                    </span>
-                  )}
-                  <button onClick={() => removeMedia(index)}>
-                    <X />
-                  </button>
-                  {index === 3 && mediaFiles.length > 4 && <strong>+{mediaFiles.length - 4}</strong>}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="composer-details">
-            <label>
-              <MapPin />
-              <input
-                value={placeName}
-                onChange={(event) => setPlaceName(event.target.value)}
-                placeholder={t('social.placeName')}
-              />
-            </label>
-            <select
-              value={province}
-              onChange={(event) => {
-                setProvince(event.target.value);
-                // Changing the province invalidates the narrower picks.
-                setDistrictId('');
-                setCommuneId('');
-              }}
-              aria-label={t('social.chooseProvince')}
-            >
-              <option value="">{t('social.chooseProvince')}</option>
-              {provinces.map((item) => (
-                <option key={item.id} value={item.name}>
-                  {item.icon} {language === 'kh' ? item.name_kh : item.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={districtId}
-              onChange={(event) => {
-                setDistrictId(event.target.value);
-                setCommuneId('');
-              }}
-              aria-label={t('social.chooseDistrict')}
-            >
-              <option value="">{t('social.chooseDistrict')}</option>
-              {districtOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {language === 'kh' ? item.name_kh : item.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={communeId}
-              onChange={(event) => setCommuneId(event.target.value)}
-              aria-label={t('social.chooseCommune')}
-            >
-              <option value="">{t('social.chooseCommune')}</option>
-              {communeOptions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {language === 'kh' ? item.name_kh : item.name}
-                </option>
-              ))}
-            </select>
-            <div className="composer-pin-row">
-              <button
-                type="button"
-                className="composer-pin-button"
-                onClick={() => setPickerOpen(true)}
-                aria-label={t('map.composerPin')}
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            className="composer-expanded"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={springs.gentle}
+          >
+            <div className="composer-top-meta">
+              <div className="composer-free-note">{t('access.postingFree')}</div>
+              <span
+                className={`composer-char-counter ${charRatio > 0.9 ? 'near-limit' : ''}`}
+                aria-live="polite"
               >
-                <MapPinned size={15} /> {t('map.composerPin')}
-              </button>
-              {pin && (
-                <span className="composer-pin-chip">
-                  {t('map.pinnedAt')} {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
-                  <button
-                    type="button"
-                    onClick={() => setPin(null)}
-                    aria-label={t('map.clearPin')}
-                  >
-                    <X size={13} />
-                  </button>
-                </span>
-              )}
+                {caption.length.toLocaleString()} / {CAPTION_MAX.toLocaleString()}
+              </span>
             </div>
-            {/* Phase 0 hardening — location privacy choice (EN + KH). */}
-            <div className="safety-block" role="radiogroup" aria-label={t('locationPrivacy.title')}>
-              <span className="safety-block-label">{t('locationPrivacy.title')}</span>
-              <div className="safety-chips">
-                {(['approximate', 'exact', 'sensitive'] as const).map((choice) => (
+
+            <textarea
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              placeholder={t('social.storyPrompt')}
+              maxLength={CAPTION_MAX}
+            />
+
+            {mediaFiles.length > 0 ? (
+              <div className={`composer-media-grid count-${Math.min(mediaFiles.length, 4)}`}>
+                {mediaFiles.map((item, index) => (
+                  <div key={item.preview}>
+                    {item.media_type === 'video' ? (
+                      <video src={item.preview} muted />
+                    ) : (
+                      <img src={item.preview} alt="" />
+                    )}
+                    {item.media_type === 'video' && (
+                      <span>
+                        <Play size={12} /> {item.duration_seconds}s
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeMedia(index)}
+                      aria-label={`Remove media ${index + 1}`}
+                    >
+                      <X size={15} />
+                    </button>
+                    {index === 3 && mediaFiles.length > 4 && <strong>+{mediaFiles.length - 4}</strong>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <label className={`composer-dropzone ${isDragging ? 'active' : ''}`}>
+                <UploadCloud size={22} aria-hidden="true" />
+                <div>
+                  <strong>
+                    {language === 'kh'
+                      ? 'ទម្លាក់រូបភាព ឬវីដេអូទីនេះ ឬចុចដើម្បីជ្រើសរើស'
+                      : 'Drag & drop photos or a 30s clip here, or tap to browse'}
+                  </strong>
+                  <small>
+                    {language === 'kh'
+                      ? 'រហូតដល់ 10 រូបភាព ឬវីដេអូ 1 (≤ 4 MB)'
+                      : 'Up to 10 photos or 1 video clip (max 4 MB each)'}
+                  </small>
+                </div>
+                <input type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} />
+              </label>
+            )}
+
+            <div className="composer-details">
+              <label>
+                <MapPin size={15} />
+                <input
+                  value={placeName}
+                  onChange={(event) => setPlaceName(event.target.value)}
+                  placeholder={t('social.placeName')}
+                />
+              </label>
+              <select
+                value={province}
+                onChange={(event) => {
+                  setProvince(event.target.value);
+                  setDistrictId('');
+                  setCommuneId('');
+                }}
+                aria-label={t('social.chooseProvince')}
+              >
+                <option value="">{t('social.chooseProvince')}</option>
+                {provinces.map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {item.icon} {language === 'kh' ? item.name_kh : item.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={districtId}
+                onChange={(event) => {
+                  setDistrictId(event.target.value);
+                  setCommuneId('');
+                }}
+                aria-label={t('social.chooseDistrict')}
+              >
+                <option value="">{t('social.chooseDistrict')}</option>
+                {districtOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {language === 'kh' ? item.name_kh : item.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={communeId}
+                onChange={(event) => setCommuneId(event.target.value)}
+                aria-label={t('social.chooseCommune')}
+              >
+                <option value="">{t('social.chooseCommune')}</option>
+                {communeOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {language === 'kh' ? item.name_kh : item.name}
+                  </option>
+                ))}
+              </select>
+              <div className="composer-pin-row">
+                <button
+                  type="button"
+                  className="composer-pin-button"
+                  onClick={() => setPickerOpen(true)}
+                  aria-label={t('map.composerPin')}
+                >
+                  <MapPinned size={15} /> {t('map.composerPin')}
+                </button>
+                {pin && (
+                  <span className="composer-pin-chip">
+                    {t('map.pinnedAt')} {pin.lat.toFixed(4)}, {pin.lng.toFixed(4)}
+                    <button
+                      type="button"
+                      onClick={() => setPin(null)}
+                      aria-label={t('map.clearPin')}
+                    >
+                      <X size={13} />
+                    </button>
+                  </span>
+                )}
+              </div>
+              {/* Phase 0 hardening — location privacy choice (EN + KH). */}
+              <div className="safety-block" role="radiogroup" aria-label={t('locationPrivacy.title')}>
+                <span className="safety-block-label">{t('locationPrivacy.title')}</span>
+                <div className="safety-chips">
+                  {(['approximate', 'exact', 'sensitive'] as const).map((choice) => (
+                    <button
+                      key={choice}
+                      type="button"
+                      role="radio"
+                      aria-checked={locationChoice === choice}
+                      className={`safety-chip${locationChoice === choice ? ' on' : ''}`}
+                      onClick={() => setLocationChoice(choice)}
+                    >
+                      {t(`locationPrivacy.${choice}`)}
+                    </button>
+                  ))}
+                </div>
+                <p className="safety-note">{t(`locationPrivacy.hint.${locationChoice}`)}</p>
+              </div>
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                aria-label="Category"
+              >
+                {categories.map((item) => (
+                  <option key={item.id} value={item.slug}>
+                    {item.emoji} {language === 'kh' ? item.label_kh : item.label_en}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Phase 9 — optional safety & accessibility observations. */}
+            <div className="safety-block">
+              <span className="safety-block-label">{t('safety.blockLabel')}</span>
+              <div className="safety-chips" role="group" aria-label={t('safety.blockLabel')}>
+                {[...SAFETY_TAGS, ...ACCESS_TAGS].map((tag) => (
                   <button
-                    key={choice}
+                    key={tag}
                     type="button"
-                    role="radio"
-                    aria-checked={locationChoice === choice}
-                    className={`safety-chip${locationChoice === choice ? ' on' : ''}`}
-                    onClick={() => setLocationChoice(choice)}
+                    className={`safety-chip${safetyTags.includes(tag) ? ' on' : ''}`}
+                    aria-pressed={safetyTags.includes(tag)}
+                    onClick={() => toggleSafetyTag(tag)}
                   >
-                    {t(`locationPrivacy.${choice}`)}
+                    {t(`safety.tag.${tag}`)}
                   </button>
                 ))}
               </div>
-              <p className="safety-note">{t(`locationPrivacy.hint.${locationChoice}`)}</p>
+              <p className="safety-note">{t('safety.note')}</p>
             </div>
-            <select
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              aria-label="Category"
-            >
-              {categories.map((item) => (
-                <option key={item.id} value={item.slug}>
-                  {item.emoji} {language === 'kh' ? item.label_kh : item.label_en}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {/* Phase 9 — optional safety & accessibility observations. */}
-          <div className="safety-block">
-            <span className="safety-block-label">{t('safety.blockLabel')}</span>
-            <div className="safety-chips" role="group" aria-label={t('safety.blockLabel')}>
-              {[...SAFETY_TAGS, ...ACCESS_TAGS].map((tag) => (
+            {error && (
+              <div className="composer-error" role="alert">
+                {error}
+              </div>
+            )}
+            <div className="composer-footer">
+              <div>
+                <label>
+                  <Camera size={16} />
+                  <span>{t('social.addMedia')}</span>
+                  <input type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} />
+                </label>
                 <button
-                  key={tag}
                   type="button"
-                  className={`safety-chip${safetyTags.includes(tag) ? ' on' : ''}`}
-                  aria-pressed={safetyTags.includes(tag)}
-                  onClick={() => toggleSafetyTag(tag)}
+                  onClick={() => setCaption((prev) => `${prev}${prev ? ' ' : ''}✨`)}
+                  aria-label="Add sparkle emoji"
+                  title="Add ✨"
                 >
-                  {t(`safety.tag.${tag}`)}
+                  <Smile size={16} />
                 </button>
-              ))}
-            </div>
-            <p className="safety-note">{t('safety.note')}</p>
-          </div>
-
-          {error && <div className="composer-error">{error}</div>}
-          <div className="composer-footer">
-            <div>
-              <label>
-                <Camera />
-                <span>{t('social.addMedia')}</span>
-                <input type="file" accept="image/*,video/*" multiple onChange={onFilesSelected} />
-              </label>
-              <button>
-                <Smile />
-              </button>
-              {mediaFiles.length > 0 && (
-                <span>
-                  {momentsLabel} · {mediaFiles[0]?.media_type === 'video' ? 'video ≤ 30s' : 'up to 10 photos'}
-                </span>
-              )}
-            </div>
-            <div>
-              <button className="composer-cancel" onClick={() => setOpen(false)}>
-                Cancel
-              </button>
-              <button className="composer-publish" disabled={!canPublish} onClick={publish}>
-                {publishing ? (
-                  <>
-                    <span className="button-spinner" /> {progress}%
-                  </>
-                ) : (
-                  <>
-                    <Send /> {t('social.publish')}
-                  </>
+                {mediaFiles.length > 0 && (
+                  <span>
+                    {momentsLabel} ·{' '}
+                    {mediaFiles[0]?.media_type === 'video'
+                      ? 'video ≤ 30s'
+                      : `${mediaFiles.length}/10 photos`}
+                  </span>
                 )}
-              </button>
+              </div>
+              <div>
+                <button type="button" className="composer-cancel" onClick={() => setOpen(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="composer-publish" disabled={!canPublish} onClick={publish}>
+                  {publishing ? (
+                    <>
+                      <span className="button-spinner" /> {progress}%
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} /> {t('social.publish')}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-          {publishing && (
-            <div className="upload-progress">
-              <span style={{ width: `${progress}%` }} />
-            </div>
-          )}
-        </div>
-      )}
+            {publishing && (
+              <div className="upload-progress">
+                <span style={{ width: `${progress}%` }} />
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
       {pickerOpen && (
         <PlacePicker
           initialCenter={pickerCenter}

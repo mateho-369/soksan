@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   BadgeCheck,
   Bookmark,
@@ -18,6 +18,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ErrorState } from '../components/States';
 import CommentDrawer from '../components/CommentDrawer';
+import RichCaption from '../components/RichCaption';
 import LikeButton from '../ui/LikeButton';
 import AnimatedNumber from '../ui/AnimatedNumber';
 import type { Post } from '../types';
@@ -170,6 +171,39 @@ export default function Clips() {
     if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
   }, []);
 
+  // Keyboard navigation for 1-up vertical snap feed (ArrowDown/j, ArrowUp/k, m for mute)
+  useEffect(() => {
+    if (commentPostId !== null || clips.length === 0) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      const currentIndex = Math.max(0, clips.findIndex((c) => c.id === activeId));
+      if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'j') {
+        event.preventDefault();
+        const nextClip = clips[Math.min(clips.length - 1, currentIndex + 1)];
+        if (nextClip) {
+          setActiveId(nextClip.id);
+          const slideEl = stageRef.current?.querySelector<HTMLElement>(`[data-slide="${nextClip.id}"]`);
+          slideEl?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        }
+      } else if (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'k') {
+        event.preventDefault();
+        const prevClip = clips[Math.max(0, currentIndex - 1)];
+        if (prevClip) {
+          setActiveId(prevClip.id);
+          const slideEl = stageRef.current?.querySelector<HTMLElement>(`[data-slide="${prevClip.id}"]`);
+          slideEl?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        }
+      } else if (event.key === 'm' || event.key === 'M') {
+        setMuted((value) => !value);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeId, clips, commentPostId]);
+
   const interact = async (postId: number, action: 'like' | 'share' | 'save') => {
     if (!requireAuth(navigate)) return;
     const clip = clips.find((item) => item.id === postId);
@@ -284,18 +318,25 @@ export default function Clips() {
           <p>{t('clips.emptyHelp')}</p>
         </div>
       ) : (
-        <div className="clips-stage" ref={stageRef}>
+        <div
+          className="clips-stage flex flex-col overflow-y-scroll snap-y snap-mandatory"
+          ref={stageRef}
+        >
           {clips.map((clip) => {
             const video = clip.media.find((item) => item.media_type === 'video') || { media_url: clip.media_url };
             const isActive = activeId === clip.id;
             const failed = videoErrors[clip.id];
             return (
-              <article key={clip.id} className={`clip-slide ${isActive ? 'active' : ''}`} data-slide={clip.id}>
+              <article
+                key={clip.id}
+                className={`clip-slide snap-start snap-always shrink-0 ${isActive ? 'active' : ''}`}
+                data-slide={clip.id}
+              >
                 <video
                   ref={(element) => {
                     videoEls[clip.id] = element;
                   }}
-                  src={video.media_url}
+                  src={video.media_url || undefined}
                   loop
                   muted={muted}
                   playsInline
@@ -304,12 +345,13 @@ export default function Clips() {
                 />
                 {/* Tap layer: single tap = play/pause, double tap = like. */}
                 <button
+                  type="button"
                   className="clip-slide-tap"
                   aria-label={clip.location_name}
                   onClick={() => handleTap(clip)}
                 />
                 {failed && (
-                  <button className="clip-video-fallback" onClick={() => retryVideo(clip.id)}>
+                  <button type="button" className="clip-video-fallback" onClick={() => retryVideo(clip.id)}>
                     <Play /> {t('clips.retryVideo')}
                   </button>
                 )}
@@ -322,6 +364,7 @@ export default function Clips() {
 
                 <div className="clip-player-tools">
                   <button
+                    type="button"
                     className="clip-sound"
                     onClick={() => setMuted((value) => !value)}
                     aria-label={muted ? t('clips.unmute') : t('clips.mute')}
@@ -332,21 +375,30 @@ export default function Clips() {
 
                 <div className="clip-copy">
                   <div className="clip-author">
-                    <img src={clip.author.avatar_url} alt="" />
+                    <img src={clip.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                     <strong>
                       {language === 'kh' && clip.author.name_kh ? clip.author.name_kh : clip.author.name}
                       {clip.author.verified && <BadgeCheck />}
                     </strong>
                     <button
+                      type="button"
                       className={clip.author.is_following ? 'following' : ''}
                       onClick={() => toggleFollow(clip.author.id)}
                     >
                       {clip.author.is_following ? t('social.following') : t('social.follow')}
                     </button>
                   </div>
-                  <p>{language === 'kh' ? clip.caption_kh : clip.caption_en}</p>
+                  <RichCaption
+                    text={language === 'kh' ? clip.caption_kh : clip.caption_en}
+                    hashtags={clip.hashtags}
+                  />
                   <span>
-                    <MapPin /> {clip.location_name}, {clip.province}
+                    <Link
+                      to={`/discover?q=${encodeURIComponent(clip.location_name)}`}
+                      className="clip-location-pin-link"
+                    >
+                      <MapPin /> {clip.location_name}, {clip.province}
+                    </Link>
                     {typeof clip.view_count === 'number' && (
                       <em>
                         <Eye /> <AnimatedNumber value={clip.view_count} compact /> {t('clips.views')}
@@ -360,11 +412,12 @@ export default function Clips() {
 
                 <div className="clip-actions">
                   <button
+                    type="button"
                     className={`clip-avatar ${clip.author.is_following ? 'following' : ''}`}
                     onClick={() => toggleFollow(clip.author.id)}
                     aria-label={t('social.follow')}
                   >
-                    <img src={clip.author.avatar_url} alt="" />
+                    <img src={clip.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                     {!clip.author.is_following && <i>+</i>}
                   </button>
                   <LikeButton
@@ -376,13 +429,14 @@ export default function Clips() {
                     size="lg"
                     label={t('social.like')}
                   />
-                  <button onClick={() => setCommentPostId(clip.id)} aria-label={t('social.comment')}>
+                  <button type="button" onClick={() => setCommentPostId(clip.id)} aria-label={t('social.comment')}>
                     <span>
                       <MessageCircle />
                     </span>
                     <b>{formatCount(clip.comment_count)}</b>
                   </button>
                   <button
+                    type="button"
                     className={clip.is_saved ? 'saved' : ''}
                     onClick={() => interact(clip.id, 'save')}
                     aria-label={t('social.save')}
@@ -391,7 +445,7 @@ export default function Clips() {
                       <Bookmark fill={clip.is_saved ? 'currentColor' : 'none'} />
                     </span>
                   </button>
-                  <button onClick={() => interact(clip.id, 'share')} aria-label={t('social.share')}>
+                  <button type="button" onClick={() => interact(clip.id, 'share')} aria-label={t('social.share')}>
                     <span>
                       <Send />
                     </span>

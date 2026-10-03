@@ -1,5 +1,6 @@
 import { apiFetch } from '../lib/http';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, Star, ChartColumn, MapPin, BadgeCheck, CalendarCheck, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -9,6 +10,7 @@ import type { RankFilter, RankProvince } from '../types';
 
 export default function Rankings() {
   const { language, t } = useLanguage();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<RankFilter[]>([]);
   const [provinces, setProvinces] = useState<RankProvince[]>([]);
   const [activeFilter, setActiveFilter] = useState('');
@@ -52,9 +54,10 @@ export default function Rankings() {
         </div>
       </section>
 
-      <div className="ranking-tabs">
+      <div className="ranking-tabs" role="tablist" aria-label="Ranking categories">
         {filters.map((filter) => (
           <button
+            type="button"
             key={filter.id}
             className={activeFilter === filter.slug ? 'active' : ''}
             onClick={() => setActiveFilter(filter.slug)}
@@ -117,7 +120,7 @@ export default function Rankings() {
                         <BadgeCheck /> Fast book
                       </div>
                     )}
-                    <button>
+                    <button type="button" onClick={() => navigate('/profile')}>
                       <CalendarCheck /> Book <ArrowUpRight />
                     </button>
                   </div>

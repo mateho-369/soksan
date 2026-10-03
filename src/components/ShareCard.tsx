@@ -59,7 +59,7 @@ export default function ShareCard({ post, onClose }: { post: Post; onClose: () =
             <span>សុខសាន្ត · {t('share.tagline')}</span>
           </div>
           <div className="postcard-media">
-            <img src={post.media_url} alt="" />
+            {post.media_url && <img src={post.media_url} alt="" />}
           </div>
           <div className="postcard-body">
             <strong>{post.location_name}</strong>

@@ -47,7 +47,7 @@ export default function PostPublic() {
       ) : (
         <article className="post-public-card">
           <div className="post-public-media">
-            <img src={post.media_url} alt={post.location_name} />
+            {post.media_url && <img src={post.media_url} alt={post.location_name} />}
           </div>
           <div className="post-public-body">
             <span className="eyebrow">
@@ -55,7 +55,7 @@ export default function PostPublic() {
             </span>
             <h1>{language === 'kh' ? post.caption_kh : post.caption_en}</h1>
             <div className="post-public-author">
-              <img src={post.author.avatar_url} alt="" />
+              <img src={post.author.avatar_url || '/images/traveler-dara.jpg'} alt="" />
               <div>
                 <strong>{post.author.name}</strong>
                 <small>{new Date(post.created_at).toLocaleDateString()}</small>

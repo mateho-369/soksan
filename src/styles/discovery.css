@@ -11,7 +11,7 @@
   display: flex;
   align-items: baseline;
   gap: 7px;
-  color: var(--accent-deep, #e8543a);
+  color: var(--accent-deep, #b83b22);
   margin-bottom: 9px;
 }
 
@@ -20,12 +20,13 @@
 }
 
 .trending-rail header strong {
-  font-size: 0.95rem;
-  color: var(--night, #0c120e);
+  font-size: var(--text-base, 0.95rem);
+  color: var(--slate, #1c2822);
 }
 
 .trending-rail header small {
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
+  font-size: var(--text-xs, 0.75rem);
 }
 
 .trending-rail ol {
@@ -39,33 +40,35 @@
 }
 
 .trending-card {
-  flex: 0 0 200px;
+  flex: 0 0 212px;
   display: grid;
-  grid-template-columns: 62px 1fr;
-  gap: 9px;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 16%, transparent);
-  border-radius: 14px;
-  padding: 8px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: 16px;
+  padding: 9px;
+  box-shadow: var(--shadow-xs);
 }
 
 .trending-card img {
-  width: 62px;
-  height: 62px;
+  width: 64px;
+  height: 64px;
   object-fit: cover;
-  border-radius: 10px;
+  border-radius: 11px;
 }
 
 .trending-card .trending-rank {
-  color: var(--accent-deep, #e8543a);
+  color: var(--accent-deep, #b83b22);
   font-weight: 800;
-  font-size: 0.72rem;
+  font-size: var(--text-xs, 0.75rem);
 }
 
 .trending-card strong {
   display: block;
-  font-size: 0.8rem;
-  color: var(--night, #0c120e);
+  font-size: var(--text-xs, 0.8125rem);
+  line-height: 1.4;
+  color: var(--slate, #1c2822);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,15 +76,17 @@
 
 .trending-card small {
   display: block;
-  color: var(--muted, #748078);
-  font-size: 0.7rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.4;
 }
 
 .trending-card em {
   display: block;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   font-style: normal;
-  font-size: 0.7rem;
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -98,52 +103,56 @@
 .trips-heading h1 {
   margin: 6px 0 8px;
   font-family: var(--font-display, inherit);
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .trips-heading p,
 .trips-heading small {
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   margin: 0 0 14px;
 }
 
 .trips-empty {
   display: grid;
   justify-items: center;
-  gap: 10px;
+  gap: 12px;
   text-align: center;
-  padding: 42px 18px;
-  background: var(--sage-pale, #e6efe6);
-  border-radius: var(--radius-card, 18px);
-  color: var(--sage-dark, #5f7d6a);
+  padding: 42px 20px;
+  background: var(--sage-pale, #e6f0ea);
+  border-radius: var(--radius-card, 20px);
+  color: var(--sage-dark, #2b503c);
 }
 
 .trips-empty h1 {
   margin: 0;
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .trips-empty-note {
-  color: var(--muted, #748078);
-  background: var(--sage-pale, #e6efe6);
-  border-radius: var(--radius-card, 18px);
+  color: var(--muted, #526158);
+  background: var(--sage-pale, #e6f0ea);
+  border-radius: var(--radius-card, 20px);
   padding: 18px;
   text-align: center;
 }
 
 .trips-cta {
-  display: inline-block;
-  background: var(--accent, #ff6b4a);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  background: linear-gradient(135deg, var(--accent, #d94e34), var(--accent-deep, #b83b22));
   color: #fff;
-  border-radius: var(--radius-pill, 999px);
-  padding: 9px 20px;
-  font-weight: 800;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 10px 22px;
+  font-weight: 700;
   text-decoration: none;
+  box-shadow: var(--shadow-accent);
 }
 
 .trips-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -155,18 +164,19 @@
   justify-content: space-between;
   gap: 12px;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 14px 16px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: var(--radius-card, 20px);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-xs);
 }
 
 .trip-card strong {
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .trip-card small {
   display: block;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   margin-top: 2px;
 }
 
@@ -182,27 +192,30 @@
 .trip-card-actions button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 44px;
   gap: 6px;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  padding: 8px 14px;
-  font-weight: 800;
-  font-size: 0.8rem;
+  border-radius: var(--radius-pill, 9999px);
+  padding: 8px 16px;
+  font-weight: 700;
+  font-size: var(--text-xs, 0.8125rem);
   cursor: pointer;
-  background: var(--sage-pale, #e6efe6);
-  color: var(--sage-dark, #5f7d6a);
+  background: var(--sage-pale, #e6f0ea);
+  color: var(--sage-dark, #2b503c);
 }
 
 .trip-card-actions button.danger {
-  padding: 8px 10px;
-  background: #fbe9e4;
-  color: var(--accent-deep, #e8543a);
+  min-width: 44px;
+  padding: 8px 12px;
+  background: var(--accent-soft, #fff0ec);
+  color: var(--accent-deep, #b83b22);
 }
 
 /* Public share view */
 .trip-stops {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -210,23 +223,24 @@
 
 .trip-stop {
   display: grid;
-  grid-template-columns: 26px 96px 1fr;
+  grid-template-columns: 28px 96px 1fr;
   gap: 12px;
   align-items: center;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 12px 14px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: var(--radius-card, 20px);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-xs);
 }
 
 .trip-stop-index {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: var(--sage-dark, #5f7d6a);
+  background: var(--sage-dark, #2b503c);
   color: #fff;
   font-weight: 800;
-  font-size: 0.8rem;
+  font-size: var(--text-xs, 0.8125rem);
   display: grid;
   place-items: center;
 }
@@ -239,20 +253,20 @@
 }
 
 .trip-stop strong {
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .trip-stop small {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
 }
 
 .trip-stop p {
   margin: 4px 0 0;
-  color: var(--muted, #748078);
-  font-size: 0.85rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
 }
 
 /* ── Trip picker modal ────────────────────────────────────────────────── */
@@ -261,19 +275,22 @@
   position: fixed;
   inset: 0;
   z-index: 180;
-  background: rgba(12, 18, 14, 0.45);
+  background: rgba(11, 17, 13, 0.52);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   display: grid;
   place-items: center;
   padding: 16px;
 }
 
 .trip-picker {
-  width: min(440px, 100%);
-  max-height: 82vh;
+  width: min(460px, 100%);
+  max-height: 84dvh;
   overflow-y: auto;
-  background: var(--cream, #f9f6f0);
-  border-radius: var(--radius-card, 18px);
-  padding: 18px;
+  background: var(--cream, #faf8f4);
+  border-radius: var(--radius-xl, 24px);
+  padding: 20px;
+  box-shadow: var(--shadow-modal);
 }
 
 .trip-picker header {
@@ -288,34 +305,34 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 1.05rem;
-  color: var(--night, #0c120e);
+  font-size: var(--text-lg, 1.1rem);
+  color: var(--slate, #1c2822);
 }
 
 .trip-picker-place {
-  color: var(--muted, #748078);
-  font-size: 0.85rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
   margin: 6px 0 12px;
 }
 
 .trip-notice {
   margin: 0 0 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--sage-pale, #e6efe6);
-  color: var(--sage-dark, #5f7d6a);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--sage-pale, #e6f0ea);
+  color: var(--sage-dark, #2b503c);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .trip-error {
   margin: 0 0 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: #fbe9e4;
-  color: var(--accent-deep, #e8543a);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft, #fff0ec);
+  color: var(--accent-deep, #b83b22);
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .trip-picker-list {
@@ -332,34 +349,36 @@
   justify-content: space-between;
   gap: 10px;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 16%, transparent);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: 14px;
+  padding: 10px 14px;
 }
 
 .trip-picker-list li.trip-picker-empty {
   justify-content: center;
-  color: var(--muted, #748078);
-  font-size: 0.85rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .trip-picker-list small {
   display: block;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   margin-top: 2px;
 }
 
 .trip-picker-list button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 40px;
   gap: 5px;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--sage-dark, #5f7d6a);
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--sage-dark, #2b503c);
   color: #fff;
-  font-weight: 800;
-  font-size: 0.78rem;
-  padding: 7px 12px;
+  font-weight: 700;
+  font-size: var(--text-xs, 0.8125rem);
+  padding: 8px 14px;
   cursor: pointer;
 }
 
@@ -376,27 +395,29 @@
 .trip-picker-create input {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   font: inherit;
-  padding: 9px 12px;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 30%, transparent);
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong, rgba(28, 40, 34, 0.14));
   background: #fff;
 }
 
 .trip-picker-create button {
+  min-height: 44px;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  background: var(--accent, #ff6b4a);
+  border-radius: var(--radius-pill, 9999px);
+  background: linear-gradient(135deg, var(--accent, #d94e34), var(--accent-deep, #b83b22));
   color: #fff;
-  font-weight: 800;
-  font-size: 0.82rem;
-  padding: 9px 16px;
+  font-weight: 700;
+  font-size: var(--text-xs, 0.8125rem);
+  padding: 10px 18px;
   cursor: pointer;
 }
 
 .trip-picker-create button:disabled {
-  background: var(--sage-pale, #e6efe6);
-  color: var(--muted, #748078);
+  background: var(--sage-pale, #e6f0ea);
+  color: var(--muted, #526158);
   cursor: not-allowed;
 }
 
@@ -407,20 +428,20 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: var(--night, #0c120e);
-  color: var(--cream, #f9f6f0);
-  padding: 8px 14px;
-  font-size: 0.85rem;
+  background: var(--night, #0b110d);
+  color: var(--cream, #faf8f4);
+  padding: 10px 16px;
+  font-size: var(--text-sm, 0.875rem);
   font-weight: 700;
 }
 
 .offline-banner a {
-  color: var(--accent, #ff6b4a);
+  color: var(--accent-gold, #d99b26);
 }
 
 .offline-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -432,9 +453,10 @@
   gap: 12px;
   align-items: center;
   background: #fff;
-  border: 1px solid color-mix(in srgb, var(--sage-dark, #5f7d6a) 18%, transparent);
-  border-radius: var(--radius-card, 18px);
-  padding: 12px 14px;
+  border: 1px solid var(--border-subtle, rgba(28, 40, 34, 0.08));
+  border-radius: var(--radius-card, 20px);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-xs);
 }
 
 .offline-card img {
@@ -445,32 +467,36 @@
 }
 
 .offline-card strong {
-  color: var(--night, #0c120e);
+  color: var(--slate, #1c2822);
 }
 
 .offline-card small {
   display: block;
-  color: var(--muted, #748078);
+  color: var(--muted, #526158);
   margin-top: 2px;
 }
 
 .offline-card p {
   margin: 4px 0 0;
-  color: var(--muted, #748078);
-  font-size: 0.85rem;
+  color: var(--muted, #526158);
+  font-size: var(--text-sm, 0.875rem);
 }
 
 .offline-card button.danger {
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
   border: 0;
-  border-radius: var(--radius-pill, 999px);
-  background: #fbe9e4;
-  color: var(--accent-deep, #e8543a);
-  padding: 9px 11px;
+  border-radius: var(--radius-pill, 9999px);
+  background: var(--accent-soft, #fff0ec);
+  color: var(--accent-deep, #b83b22);
+  padding: 9px 12px;
   cursor: pointer;
 }
 
 /* Feed action row: offline-saved state */
 .facebook-actions button.offline-saved {
-  color: var(--sage-dark, #5f7d6a);
+  color: var(--sage-dark, #2b503c);
   font-weight: 800;
 }

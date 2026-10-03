@@ -1,6 +1,6 @@
 import { apiFetch } from '../lib/http';
 import { useEffect, useState, type ReactNode, type FormEvent } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   House,
@@ -22,6 +22,7 @@ import {
   HardDriveDownload,
   WifiOff,
   UserPlus,
+  Settings as SettingsIcon,
   X,
 } from 'lucide-react';
 import Brand from './Brand';
@@ -34,6 +35,8 @@ import '../styles/discovery.css';
 
 const MotionNavLink = motion.create(NavLink);
 
+const FULL_VIEWPORT_ROUTES = new Set(['/clips', '/discover', '/messages']);
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { t, setLanguage, language } = useLanguage();
   const { user, logout } = useAuth();
@@ -43,6 +46,11 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [bannerVisible, setBannerVisible] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Keep <html lang="..."> synced for screen readers and bilingual CSS rules
+  useEffect(() => {
+    document.documentElement.lang = language === 'kh' ? 'km' : 'en';
+  }, [language]);
 
   useEffect(() => {
     apiFetch('/ads?placement=top_banner')
@@ -84,63 +92,96 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const isLockedViewport = FULL_VIEWPORT_ROUTES.has(location.pathname);
+  const routeSlug = location.pathname.replace('/', '') || 'home';
+
   return (
-    <div className={language === 'kh' ? 'font-kh' : ''}>
-      <header className="topbar">
+    <div
+      lang={language === 'kh' ? 'km' : 'en'}
+      data-lang={language}
+      className={`app-shell min-h-dvh flex flex-col ${isLockedViewport ? 'h-dvh overflow-hidden is-locked-viewport' : ''} ${
+        language === 'kh' ? 'font-kh kh' : 'font-en'
+      }`}
+    >
+      <header className="topbar sticky top-0 z-50 shrink-0">
         <div className="nav-shell">
-          <NavLink to="/" className="brand-link">
+          <NavLink to="/" className="brand-link" aria-label="SokSan Network Home">
             <Brand />
           </NavLink>
-          <nav className="desktop-links">
+          <nav className="desktop-links" aria-label="Primary navigation">
             {links.slice(0, 5).map(({ to, label }) => (
               <MotionNavLink key={to} to={to} end={to === '/'} {...pressable}>
                 {label}
               </MotionNavLink>
             ))}
             <MotionNavLink to="/rankings" {...pressable}>
-              <Trophy /> <span>{t('navigation.rankings')}</span>
+              <Trophy size={15} /> <span>{t('navigation.rankings')}</span>
             </MotionNavLink>
             <MotionNavLink to="/trips" {...pressable}>
-              <Map /> <span>{t('navigation.trips')}</span>
+              <Map size={15} /> <span>{t('navigation.trips')}</span>
             </MotionNavLink>
             <MotionNavLink to="/collections" {...pressable}>
-              <FolderHeart /> <span>{t('navigation.collections')}</span>
+              <FolderHeart size={15} /> <span>{t('navigation.collections')}</span>
             </MotionNavLink>
           </nav>
-          <form className="nav-search" onSubmit={submitSearch}>
-            <Search size={18} />
+          <form className="nav-search" role="search" onSubmit={submitSearch}>
+            <Search size={17} aria-hidden="true" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
             />
+            {query && (
+              <button
+                type="button"
+                className="nav-search-clear"
+                onClick={() => {
+                  setQuery('');
+                  if (location.search.includes('q=')) navigate('/');
+                }}
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
           </form>
           <div className="nav-actions">
+            <span className="nav-status-pill" title="Cambodia ICT · Live Network">
+              <i className={online ? 'online' : 'offline'} aria-hidden="true" />
+              <small>KH · ICT</small>
+            </span>
             <NavLink
               to="/offline"
               className="icon-button offline-library-button"
               aria-label={t('offline.title')}
               title={t('offline.title')}
             >
-              <HardDriveDownload size={17} />
+              <HardDriveDownload size={18} />
             </NavLink>
             <NavLink to="/merchant" className="merchant-nav-button">
-              <Megaphone />
+              <Megaphone size={16} />
               <span>{t('navigation.merchant')}</span>
             </NavLink>
             {/* Phase 5: admin entry point, visible only to role:admin. */}
             {user?.role === 'admin' && (
               <NavLink to="/admin" className="merchant-nav-button admin-nav-button">
-                <ShieldCheck />
+                <ShieldCheck size={16} />
                 <span>{t('navigation.admin')}</span>
               </NavLink>
             )}
             {user ? (
               <div className="auth-chip">
                 <StreakChip />
-                <img src={user.avatar_url} alt="" />
+                <img src={user.avatar_url || '/images/traveler-dara.jpg'} alt="" />
                 <span className="auth-chip-name">{language === 'kh' && user.name_kh ? user.name_kh : user.name}</span>
-                <button className="icon-button" onClick={() => logout()} aria-label={t('auth.logout')} title={t('auth.logout')}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => logout()}
+                  aria-label={t('auth.logout')}
+                  title={t('auth.logout')}
+                >
                   <LogOut size={17} />
                 </button>
               </div>
@@ -156,19 +197,46 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </NavLink>
               </div>
             )}
-            <button className="icon-button mobile-only" onClick={() => setMobileSearchOpen(true)}>
-              <Search size={20} />
+            <button
+              type="button"
+              className="icon-button mobile-only"
+              onClick={() => setMobileSearchOpen(true)}
+              aria-label={language === 'kh' ? 'បើកការស្វែងរក' : 'Open search'}
+            >
+              <Search size={19} />
             </button>
-            <button className="icon-button notification-button">
-              <Bell size={20} />
-              <span />
+            <NavLink
+              to="/settings"
+              className="icon-button settings-nav-button"
+              aria-label={language === 'kh' ? 'ការកំណត់' : 'Settings'}
+              title={language === 'kh' ? 'ការកំណត់' : 'Settings'}
+            >
+              <SettingsIcon size={18} />
+            </NavLink>
+            <button
+              type="button"
+              className="icon-button notification-button"
+              aria-label={language === 'kh' ? 'ការជូនដំណឹង' : 'Notifications'}
+            >
+              <Bell size={19} />
+              <span aria-hidden="true" />
             </button>
             <div className="language-switch" role="group" aria-label="Language">
-              <button className={language === 'kh' ? 'active' : ''} onClick={() => setLanguage('kh')}>
+              <button
+                type="button"
+                className={language === 'kh' ? 'active' : ''}
+                aria-pressed={language === 'kh'}
+                onClick={() => setLanguage('kh')}
+              >
                 KH
               </button>
-              <i />
-              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>
+              <i aria-hidden="true" />
+              <button
+                type="button"
+                className={language === 'en' ? 'active' : ''}
+                aria-pressed={language === 'en'}
+                onClick={() => setLanguage('en')}
+              >
                 EN
               </button>
             </div>
@@ -177,40 +245,49 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
 
       {bannerAd && bannerVisible && (
-        <div className="announcement-strip">
+        <div className="announcement-strip shrink-0" role="region" aria-label="Featured announcement">
           <a href={bannerAd.target_url} target="_blank" rel="noreferrer">
-            <MapPinCheck />
+            <MapPinCheck size={15} aria-hidden="true" />
             <span>
               <small>{language === 'kh' ? bannerAd.sponsor_kh : bannerAd.sponsor}</small>
               {language === 'kh' ? bannerAd.headline_kh : bannerAd.headline}
             </span>
             <b>{language === 'kh' ? bannerAd.cta_kh : bannerAd.cta}</b>
           </a>
-          <button onClick={() => setBannerVisible(false)}>
-            <X />
+          <button
+            type="button"
+            onClick={() => setBannerVisible(false)}
+            aria-label={language === 'kh' ? 'បិទការជូនដំណឹង' : 'Dismiss announcement'}
+          >
+            <X size={15} />
           </button>
         </div>
       )}
 
       {mobileSearchOpen && (
-        <div className="mobile-search-overlay">
+        <div className="mobile-search-overlay" role="dialog" aria-label={t('search.placeholder')}>
           <form onSubmit={submitSearch}>
-            <Search />
+            <Search size={18} aria-hidden="true" />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
             />
-            <button type="button" onClick={() => setMobileSearchOpen(false)}>
-              <X />
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(false)}
+              aria-label={language === 'kh' ? 'បិទការស្វែងរក' : 'Close search'}
+            >
+              <X size={16} />
             </button>
           </form>
         </div>
       )}
 
       {!online && (
-        <div className="offline-banner" role="status">
+        <div className="offline-banner shrink-0" role="status">
           <WifiOff size={15} />
           <span>{t('offline.banner')}</span>
           <NavLink to="/offline">{t('offline.openLibrary')}</NavLink>
@@ -218,19 +295,37 @@ export default function Layout({ children }: { children: ReactNode }) {
       )}
 
       <main
-        className={`app-main route-${location.pathname.replace('/', '') || 'home'} ${
+        className={`app-main flex-1 min-h-0 route-${routeSlug} ${
           bannerAd && bannerVisible ? 'has-strip' : 'no-strip'
         }`}
       >
         {children}
       </main>
 
-      <nav className="mobile-bottom-nav social-mobile-nav">
+      {!isLockedViewport && (
+        <footer className="app-footer shrink-0" role="contentinfo">
+          <div className="app-footer-inner">
+            <span>
+              <strong>SokSan Network សុខសាន្ត</strong> ·{' '}
+              {language === 'kh'
+                ? 'បណ្តាញសង្គមទេសចរណ៍កម្ពុជាពីរភាសា'
+                : 'Bilingual Cambodia Social Discovery'}
+            </span>
+            <div className="app-footer-links">
+              <Link to="/discover">{language === 'kh' ? 'ផែនទី' : 'Explore Map'}</Link>
+              <Link to="/rankings">{language === 'kh' ? 'ចំណាត់ថ្នាក់' : 'Province Rankings'}</Link>
+              <Link to="/settings">{language === 'kh' ? 'ការកំណត់' : 'Settings'}</Link>
+            </div>
+          </div>
+        </footer>
+      )}
+
+      <nav className="mobile-bottom-nav social-mobile-nav" aria-label="Mobile navigation">
         {links.map(({ to, label, icon: Icon }) => (
           <MotionNavLink key={to} to={to} end={to === '/'} {...pressable} transition={springs.snappy}>
             {({ isActive }) => (
               <>
-                <Icon />
+                <Icon size={20} />
                 <span>{label}</span>
                 {isActive && <motion.i className="nav-active-dot" layoutId="mobile-nav-dot" />}
               </>
